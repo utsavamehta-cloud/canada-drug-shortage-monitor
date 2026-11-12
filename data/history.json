@@ -1,9 +1,9 @@
 [
  {
   "date": "2026-11-12",
-  "open": 1742,
-  "outdated_pct": 51.3,
-  "no_end_pct": 60.5,
+  "open": 1738,
+  "no_update_12m_pct": 51.4,
+  "no_end_pct": 60.6,
   "dup_pct": 10.2,
   "tier3": 29
  }
