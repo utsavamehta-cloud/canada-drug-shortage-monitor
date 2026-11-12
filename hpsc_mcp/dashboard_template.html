@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Canadian Drug Shortage Monitor</title>
-<meta name="description" content="A cleaned-up daily view of Canada's mandatory drug shortage reports, with a data-reliability check on every report.">
+<meta name="description" content="A cleaned-up daily view of Canada's mandatory drug shortage reports, with a report-freshness label on every report.">
 <meta property="og:title" content="Canadian Drug Shortage Monitor">
-<meta property="og:description" content="What's short in Canada right now, and how much of the official shortage data can be trusted.">
+<meta property="og:description" content="What's short in Canada right now, and how recently each official shortage report was updated.">
 <style>
 :root {
   color-scheme: light;
@@ -99,11 +99,11 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
 <header>
   <div class="wrap">
     <h1>Canadian Drug Shortage Monitor</h1>
-    <p class="sub">A cleaned-up daily view of Canada's mandatory drug shortage reports, with a reliability check on every report.</p>
+    <p class="sub">A cleaned-up daily view of Canada's mandatory drug shortage reports, with a report-freshness label on every report.</p>
     <span class="stamp">Data as of <b id="asof"></b><span aria-hidden="true">·</span><span id="gen"></span></span>
     <nav role="tablist" aria-label="Views">
       <button role="tab" id="t-now" aria-controls="p-now" aria-selected="true">What's short now</button>
-      <button role="tab" id="t-rel" aria-controls="p-rel" aria-selected="false">Data reliability</button>
+      <button role="tab" id="t-rel" aria-controls="p-rel" aria-selected="false">Report freshness</button>
       <button role="tab" id="t-about" aria-controls="p-about" aria-selected="false">About &amp; method</button>
     </nav>
   </div>
@@ -121,7 +121,7 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
       <div class="filters">
         <input type="search" id="q" placeholder="Search drug, ingredient, DIN or company" aria-label="Search">
         <select id="f-status" aria-label="Status"><option value="">All statuses</option><option value="active_confirmed">Actual shortage</option><option value="anticipated_shortage">Anticipated</option></select>
-        <select id="f-conf" aria-label="Data confidence"><option value="">Any data confidence</option></select>
+        <select id="f-conf" aria-label="Report freshness"><option value="">Any report freshness</option></select>
         <select id="f-atc" aria-label="Therapeutic group"><option value="">All therapeutic groups</option></select>
         <label><input type="checkbox" id="f-t3"> Tier 3 only</label>
         <span class="count" id="count"></span>
@@ -130,7 +130,7 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
       <table aria-describedby="count">
         <thead><tr>
           <th data-k="brand">Drug</th><th data-k="din">DIN</th><th data-k="company">Company</th><th data-k="status">Status</th>
-          <th data-k="conf">Data confidence</th><th data-k="est_end">Est. end</th><th data-k="updated">Last updated</th><th data-k="nrep">Reports</th>
+          <th data-k="fresh">Report freshness</th><th data-k="est_end">Est. end</th><th data-k="updated">Last updated</th><th data-k="nrep">Reports</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -148,18 +148,18 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
     <div class="kpis" id="kpis-rel"></div>
     <div class="card chart">
       <h2 id="conf-title"></h2>
-      <p class="note">Every open report, labelled by how fresh its information is. Labels are signals to double-check, not verdicts.</p>
+      <p class="note">Every open report, by time since the company last updated it. An old report is not necessarily wrong: some shortages really do last a long time.</p>
       <div id="chart-conf"></div>
     </div>
     <div class="grid2">
       <div class="card chart">
         <h2>Open reports by therapeutic group</h2>
-        <p class="note">Blue = labelled probably outdated. Grey = everything else.</p>
+        <p class="note">Blue = no update in over a year. Grey = updated within the last year.</p>
         <div id="chart-atc"></div>
       </div>
       <div class="card chart">
         <h2>Trend</h2>
-        <p class="note">Share of open reports labelled probably outdated, one point per daily build.</p>
+        <p class="note">Share of open reports with no update in over a year, one point per daily build.</p>
         <div id="chart-trend"></div>
       </div>
     </div>
@@ -168,7 +168,7 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
       <p class="note">Companies with 10 or more open reports. This describes how current each company's posted reports are, not whether the shortages are real. Some shortages genuinely last a long time.</p>
       <div style="overflow-x:auto">
       <table>
-        <thead><tr><th data-c="company">Company</th><th data-c="open">Open reports</th><th data-c="outdated_pct">Probably outdated</th><th data-c="past_end_pct">Past est. end date</th><th data-c="no_end_pct">No end date</th><th data-c="median_days">Median days since update</th><th data-c="late_pct">Late submissions</th></tr></thead>
+        <thead><tr><th data-c="company">Company</th><th data-c="open">Open reports</th><th data-c="no_update_pct">No update in 12+ months</th><th data-c="past_end_pct">Past est. end date</th><th data-c="no_end_pct">No end date</th><th data-c="median_days">Median days since update</th><th data-c="late_pct">Late submissions</th></tr></thead>
         <tbody id="cobody"></tbody>
       </table>
       </div>
@@ -179,17 +179,17 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
     <div class="prose">
       <h2>What this is</h2>
       <p>Drug companies in Canada must report every drug shortage and discontinuation to Health Canada's reporting site, <a href="https://healthproductshortages.ca" target="_blank" rel="noopener">Health Product Shortages Canada</a>. The data is valuable, but many reports are never closed or updated. This monitor rebuilds the list every day, merges duplicate reports for the same product, and labels each report by how fresh its information is.</p>
-      <h2>Data confidence labels</h2>
+      <h2>Report freshness labels</h2>
       <dl>
-        <dt>Recently updated</dt><dd>Changed in the last 14 days, and its estimated end date has not passed.</dd>
-        <dt>Current per report</dt><dd>Estimated end date is still in the future; not changed in the last 14 days.</dd>
-        <dt>No end date given</dt><dd>The company has not given an estimated end date.</dd>
-        <dt>Overdue for update</dt><dd>The estimated end date passed less than 6 months ago, but the report is still open.</dd>
-        <dt>Probably outdated</dt><dd>The estimated end date passed more than 6 months ago, or the report has not been updated in over a year.</dd>
+        <dt>Updated in last 14 days</dt><dd>The company changed the report in the last 14 days, and the end date it gave has not passed.</dd>
+        <dt>End date still ahead</dt><dd>The estimated end date is in the future; no change in the last 14 days.</dd>
+        <dt>No end date given</dt><dd>The company has not given an estimated end date (and has updated the report within the last year).</dd>
+        <dt>No update in 12+ months</dt><dd>The report is still open and has not been changed in over a year.</dd>
+        <dt>Past estimated end date</dt><dd>The report is still open, but the end date the company gave has already passed.</dd>
       </dl>
-      <p>Companies must update a report within 2 calendar days of any change, and post within 2 days of being able to meet demand again (<a href="https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-shortages/regulations-guidance.html" target="_blank" rel="noopener">Health Canada</a>). A report can be correct and still unchanged for a long time, so these labels are prompts to double-check, not findings of fault.</p>
+      <p>Companies must update a report within 2 calendar days of any change, and post within 2 days of being able to meet demand again (<a href="https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-shortages/regulations-guidance.html" target="_blank" rel="noopener">Health Canada</a>). A report can be correct and still unchanged for a long time, so the last two labels are prompts to confirm with your supplier, not findings of fault.</p>
       <h2>Method</h2>
-      <p>Every open report (actual and anticipated) is pulled daily from the official public API, plus the 100 most recently resolved reports. Duplicates are merged by DIN; the most recently updated report leads each row. Tier 3 is Health Canada's flag for the shortages with the greatest potential impact.</p>
+      <p>Every open report (actual and anticipated) is pulled daily from the official public API, plus the 100 most recently resolved reports. Duplicates are merged by DIN; the most recently updated report leads each row. Every label states a date fact taken from the report itself; none is a judgement about the company or the shortage. Tier 3 is Health Canada's flag for the shortages with the greatest potential impact.</p>
       <h2>Limits</h2>
       <p>This is an independent project, not affiliated with Health Canada or the operator of the reporting site. It shows national manufacturer reports only, not local pharmacy stock. It is information only and not medical advice; never change a medication without your prescriber or pharmacist.</p>
       <p id="credits"></p>
@@ -208,13 +208,13 @@ const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = (n) => Number(n).toLocaleString("en-CA");
 const CONF = {
-  "Recently updated":   {c: "var(--good)",     ink: "var(--good-ink)"},
-  "Current per report": {c: "var(--accent)",   ink: "var(--text)"},
-  "No end date given":  {c: "var(--warning)",  ink: "var(--warning-ink)"},
-  "Overdue for update": {c: "var(--serious)",  ink: "var(--serious-ink)"},
-  "Probably outdated":  {c: "var(--critical)", ink: "var(--critical-ink)"},
+  "Updated in last 14 days": {c: "var(--good)",     ink: "var(--good-ink)"},
+  "End date still ahead":    {c: "var(--accent)",   ink: "var(--text)"},
+  "No end date given":       {c: "var(--warning)",  ink: "var(--warning-ink)"},
+  "No update in 12+ months": {c: "var(--serious)",  ink: "var(--serious-ink)"},
+  "Past estimated end date": {c: "var(--critical)", ink: "var(--critical-ink)"},
 };
-const CONF_RANK = {"Probably outdated":0, "Overdue for update":1, "No end date given":2, "Current per report":3, "Recently updated":4};
+const CONF_RANK = {"Past estimated end date":0, "No update in 12+ months":1, "No end date given":2, "End date still ahead":3, "Updated in last 14 days":4};
 const STATUS = {active_confirmed: "Actual shortage", anticipated_shortage: "Anticipated"};
 const reportUrl = (id) => `https://healthproductshortages.ca/shortage/${id}`;
 const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-CA", {year: "numeric", month: "short", day: "numeric"}) : "—";
@@ -247,15 +247,14 @@ $("#kpis-now").innerHTML =
   kpi(fmt(k.anticipated), "anticipated shortage reports") +
   kpi(fmt(k.tier3), "Tier 3 (highest impact)", true) +
   kpi(fmt(k.changed_7d), "new or updated in 7 days");
-const outdated = q.labels.find(l => l.label === "Probably outdated")?.count || 0;
-const outPct = Math.round(1000 * outdated / Math.max(1, k.open_reports)) / 10;
+const outPct = q.not_updated.over_365_days.pct;
 $("#kpis-rel").innerHTML =
-  kpi(outPct + "%", "of open reports probably outdated", true) +
-  kpi(q.not_updated.over_365_days.pct + "%", "not updated in over a year") +
+  kpi(outPct + "%", "of open reports not updated in over a year", true) +
+  kpi(q.past_end.pct + "%", "past their own estimated end date") +
   kpi(q.no_end.pct + "%", "give no estimated end date") +
   kpi(fmt(q.duplicates.extra_reports), `duplicate reports across ${fmt(q.duplicates.dins_with_multiple_open_reports)} products`) +
   kpi(q.late.pct + "%", "flagged as late submissions");
-$("#conf-title").textContent = `${outPct}% of ${fmt(k.open_reports)} open reports look outdated`;
+$("#conf-title").textContent = `${outPct}% of ${fmt(k.open_reports)} open reports haven't been updated in over a year`;
 
 // Changes
 function changeList(title, items, empty) {
@@ -279,10 +278,10 @@ DATA.rows.forEach(r => { r.nrep = r.reports.length; r._s = `${r.brand} ${r.name}
 
 function filtered() {
   const t = $("#q").value.trim().toLowerCase(), st = $("#f-status").value, cf = $("#f-conf").value, ag = $("#f-atc").value, t3 = $("#f-t3").checked;
-  let rows = DATA.rows.filter(r => (!t || r._s.includes(t)) && (!st || r.status === st) && (!cf || r.conf === cf) && (!ag || r.atcg === ag) && (!t3 || r.tier3));
+  let rows = DATA.rows.filter(r => (!t || r._s.includes(t)) && (!st || r.status === st) && (!cf || r.fresh === cf) && (!ag || r.atcg === ag) && (!t3 || r.tier3));
   if (sortKey) rows = [...rows].sort((a, b) => {
     let x = a[sortKey], y = b[sortKey];
-    if (sortKey === "conf") { x = CONF_RANK[x]; y = CONF_RANK[y]; }
+    if (sortKey === "fresh") { x = CONF_RANK[x]; y = CONF_RANK[y]; }
     if (x == null) return 1; if (y == null) return -1;
     return (x > y ? 1 : x < y ? -1 : 0) * sortDir;
   });
@@ -300,7 +299,7 @@ function render() {
       <td class="drug"><b>${esc(r.brand)}</b>${r.tier3 ? '<span class="pill" title="Tier 3: highest potential impact">Tier 3</span>' : ""}<small>${esc(r.name)} · ${esc(r.strength)} · ${esc(r.form)}</small></td>
       <td class="num">${esc(r.din)}</td><td>${esc(r.company)}</td>
       <td class="${r.status === "anticipated_shortage" ? "status-anticipated" : ""}">${STATUS[r.status]}</td>
-      <td>${badge(r.conf)}</td><td class="num">${fmtDate(r.est_end)}</td><td class="num">${fmtDate(r.updated)}</td>
+      <td>${badge(r.fresh)}</td><td class="num">${fmtDate(r.est_end)}</td><td class="num">${fmtDate(r.updated)}</td>
       <td class="num">${r.nrep}${r.nrep > 1 ? " (merged)" : ""}</td></tr>`;
     const det = open === key ? `<tr class="detail"><td colspan="8">
       <b>Reason:</b> ${esc(r.reason) || "—"} · <b>Started:</b> ${fmtDate(r.started)} · <b>Route:</b> ${esc(r.route) || "—"}
@@ -322,10 +321,10 @@ document.querySelectorAll("#p-now th[data-k]").forEach(th => th.addEventListener
 render();
 
 // Company table
-let coKey = "outdated_pct", coDir = -1;
+let coKey = "no_update_pct", coDir = -1;
 function renderCo() {
   const rows = [...DATA.companies].sort((a, b) => ((a[coKey] > b[coKey]) - (a[coKey] < b[coKey])) * coDir);
-  $("#cobody").innerHTML = rows.map(c => `<tr><td>${esc(c.company)}</td><td class="num">${fmt(c.open)}</td><td class="num">${c.outdated_pct}%</td><td class="num">${c.past_end_pct}%</td><td class="num">${c.no_end_pct}%</td><td class="num">${c.median_days == null ? "—" : fmt(c.median_days)}</td><td class="num">${c.late_pct}%</td></tr>`).join("");
+  $("#cobody").innerHTML = rows.map(c => `<tr><td>${esc(c.company)}</td><td class="num">${fmt(c.open)}</td><td class="num">${c.no_update_pct}%</td><td class="num">${c.past_end_pct}%</td><td class="num">${c.no_end_pct}%</td><td class="num">${c.median_days == null ? "—" : fmt(c.median_days)}</td><td class="num">${c.late_pct}%</td></tr>`).join("");
 }
 document.querySelectorAll("th[data-c]").forEach(th => { th.style.cursor = "pointer"; th.addEventListener("click", () => { const key = th.dataset.c; coDir = coKey === key ? -coDir : (key === "company" ? 1 : -1); coKey = key; renderCo(); }); });
 renderCo();
@@ -339,13 +338,13 @@ function hover(e, html) { e.addEventListener("mousemove", ev => showTip(ev, html
 
 function drawCharts() {
   if (drawn) return; drawn = true;
-  // 1. Confidence labels (fresh -> stale)
-  const labels = [...q.labels].sort((a, b) => CONF_RANK[b.label] - CONF_RANK[a.label]);
+  // 1. Time since last update (fresh -> old)
+  const labels = q.age_buckets;
   const total = labels.reduce((s, l) => s + l.count, 0), peak = Math.max(...labels.map(l => l.count));
   const W = 760, x0 = 170, wMax = 470, step = 40, bh = 24;
   const s1 = svg(W, labels.length * step + 16, $("#conf-title").textContent);
   labels.forEach((l, i) => {
-    const y = 8 + i * step, w = Math.max(4, l.count / peak * wMax), hot = l.label === "Probably outdated";
+    const y = 8 + i * step, w = Math.max(4, l.count / peak * wMax), hot = l.label === "Over 1 year";
     el("text", {x: x0 - 12, y: y + bh / 2 + 4.5, "text-anchor": "end", "font-weight": hot ? 650 : 400}, s1, l.label);
     const r = el("rect", {x: x0, y, width: w, height: bh, rx: 4, fill: hot ? "var(--accent)" : "var(--muted)"}, s1);
     hover(r, `<b>${l.label}</b><br>${fmt(l.count)} reports (${Math.round(1000 * l.count / total) / 10}%)`);
@@ -353,40 +352,40 @@ function drawCharts() {
   });
   $("#chart-conf").appendChild(s1);
 
-  // 2. Therapeutic groups, stacked outdated (accent) + rest (grey)
+  // 2. Therapeutic groups, stacked no-update-12m (accent) + rest (grey)
   const atc = DATA.atc.slice(0, 10), pk = Math.max(...atc.map(a => a.open));
   const W2 = 520, xa = 190, wa = 260, st2 = 30, bh2 = 18;
   const s2 = svg(W2, atc.length * st2 + 10, "Open reports by therapeutic group");
   atc.forEach((a, i) => {
-    const y = 5 + i * st2, wo = a.outdated / pk * wa, wr = (a.open - a.outdated) / pk * wa;
+    const y = 5 + i * st2, wo = a.no_update / pk * wa, wr = (a.open - a.no_update) / pk * wa;
     el("text", {x: xa - 10, y: y + bh2 / 2 + 4.5, "text-anchor": "end"}, s2, a.name);
     const g = el("g", {}, s2);
     if (wo > 0) el("rect", {x: xa, y, width: Math.max(2, wo - 1), height: bh2, rx: 3, fill: "var(--accent)"}, g);
     if (wr > 0) el("rect", {x: xa + wo + (wo > 0 ? 1 : 0), y, width: Math.max(2, wr - 1), height: bh2, rx: 3, fill: "var(--muted)"}, g);
     el("rect", {x: xa, y: y - 4, width: wa + 60, height: bh2 + 8, fill: "transparent"}, g);
-    hover(g, `<b>${esc(a.name)}</b><br>${fmt(a.open)} open reports<br>${fmt(a.outdated)} probably outdated (${Math.round(100 * a.outdated / a.open)}%)`);
+    hover(g, `<b>${esc(a.name)}</b><br>${fmt(a.open)} open reports<br>${fmt(a.no_update)} not updated in over a year (${Math.round(100 * a.no_update / a.open)}%)`);
     el("text", {x: xa + wo + wr + 8, y: y + bh2 / 2 + 4.5, class: "q"}, s2, fmt(a.open));
   });
   $("#chart-atc").appendChild(s2);
-  $("#chart-atc").insertAdjacentHTML("beforeend", `<div class="legend"><span><i class="sw" style="background:var(--accent)"></i>Probably outdated</span><span><i class="sw" style="background:var(--muted)"></i>Other open reports</span></div>`);
+  $("#chart-atc").insertAdjacentHTML("beforeend", `<div class="legend"><span><i class="sw" style="background:var(--accent)"></i>No update in over a year</span><span><i class="sw" style="background:var(--muted)"></i>Updated within the last year</span></div>`);
 
   // 3. Trend
   const h = DATA.history;
   if (h.length < 2) {
-    $("#chart-trend").innerHTML = `<p class="note" style="margin-top:20px">The trend line starts with this build (${fmtDate(h[0]?.date)}: ${h[0]?.outdated_pct}% probably outdated). A new point is added every day.</p>`;
+    $("#chart-trend").innerHTML = `<p class="note" style="margin-top:20px">The trend line starts with this build (${fmtDate(h[0]?.date)}: ${h[0]?.no_update_12m_pct}% not updated in over a year). A new point is added every day.</p>`;
   } else {
     const W3 = 520, H3 = 220, l = 44, r = 20, t = 14, b = 30;
     const xs = h.map((_, i) => l + i / (h.length - 1) * (W3 - l - r));
-    const maxY = Math.max(60, Math.ceil(Math.max(...h.map(p => p.outdated_pct)) / 10) * 10);
-    const ys = h.map(p => t + (1 - p.outdated_pct / maxY) * (H3 - t - b));
-    const s3 = svg(W3, H3, "Share of open reports probably outdated over time");
+    const maxY = Math.max(60, Math.ceil(Math.max(...h.map(p => p.no_update_12m_pct)) / 10) * 10);
+    const ys = h.map(p => t + (1 - p.no_update_12m_pct / maxY) * (H3 - t - b));
+    const s3 = svg(W3, H3, "Share of open reports not updated in over a year, over time");
     for (let v = 0; v <= maxY; v += maxY / 4) {
       const y = t + (1 - v / maxY) * (H3 - t - b);
       el("line", {x1: l, x2: W3 - r, y1: y, y2: y, stroke: "var(--line)"}, s3);
       el("text", {x: l - 8, y: y + 4, "text-anchor": "end", class: "q"}, s3, v + "%");
     }
     el("polyline", {points: xs.map((x, i) => `${x},${ys[i]}`).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2}, s3);
-    h.forEach((p, i) => { const c = el("circle", {cx: xs[i], cy: ys[i], r: 4, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2}, s3); hover(c, `<b>${fmtDate(p.date)}</b><br>${p.outdated_pct}% probably outdated<br>${fmt(p.open)} open reports`); });
+    h.forEach((p, i) => { const c = el("circle", {cx: xs[i], cy: ys[i], r: 4, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2}, s3); hover(c, `<b>${fmtDate(p.date)}</b><br>${p.no_update_12m_pct}% not updated in over a year<br>${fmt(p.open)} open reports`); });
     el("text", {x: l, y: H3 - 8, class: "q"}, s3, fmtDate(h[0].date));
     el("text", {x: W3 - r, y: H3 - 8, "text-anchor": "end", class: "q"}, s3, fmtDate(h[h.length - 1].date));
     $("#chart-trend").appendChild(s3);

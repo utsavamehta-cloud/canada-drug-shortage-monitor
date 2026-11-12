@@ -37,9 +37,8 @@ ATC_GROUPS = {
     "S": "Eyes & ears",
     "V": "Various",
 }
-CONF_ORDER = ["Probably outdated", "Overdue for update", "No end date given",
-              "Current per report", "Recently updated"]
-CONF_RANK = {c: i for i, c in enumerate(CONF_ORDER)}
+FRESH_ORDER = s.FRESHNESS_ORDER  # fresh -> check first
+AGE_BUCKETS = [("Under 3 months", 0, 90), ("3 to 6 months", 91, 180), ("6 to 12 months", 181, 365), ("Over 1 year", 366, 10**6)]
 STATUS_LABEL = {"active_confirmed": "Actual shortage", "anticipated_shortage": "Anticipated"}
 
 
@@ -97,7 +96,7 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
             "company": lead.get("company") or "",
             "status": "active_confirmed" if "active_confirmed" in statuses else "anticipated_shortage",
             "tier3": any(r.get("tier_3") for r in reps),
-            "conf": lead["quality"]["confidence"],
+            "fresh": lead["quality"]["freshness"],
             "est_end": _d(lead.get("estimated_end")),
             "updated": _d(lead.get("updated")),
             "started": _d(lead.get("actual_start") or lead.get("anticipated_start")),
@@ -123,13 +122,13 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
         days = [r["quality"]["days_since_update"] for r in reps if r["quality"]["days_since_update"] is not None]
         companies.append({
             "company": co, "open": n,
-            "outdated_pct": round(100 * sum(r["quality"]["confidence"] == "Probably outdated" for r in reps) / n, 1),
+            "no_update_pct": round(100 * sum((r["quality"]["days_since_update"] or 0) > 365 for r in reps) / n, 1),
             "past_end_pct": round(100 * sum(r["quality"]["end_date_passed_days"] > 0 for r in reps) / n, 1),
             "no_end_pct": round(100 * sum(bool(r.get("end_date_unknown") or not r.get("estimated_end")) for r in reps) / n, 1),
             "median_days": int(statistics.median(days)) if days else None,
             "late_pct": round(100 * sum(bool(r.get("late_submission")) for r in reps) / n, 1),
         })
-    companies.sort(key=lambda c: (-c["outdated_pct"], -c["open"]))
+    companies.sort(key=lambda c: (-c["no_update_pct"], -c["open"]))
 
     # Therapeutic groups.
     atc = Counter()
@@ -137,9 +136,9 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
     for r in open_reports:
         g = _atc_group(r.get("atc"))
         atc[g] += 1
-        atc_out[g] += r["quality"]["confidence"] == "Probably outdated"
+        atc_out[g] += (r["quality"]["days_since_update"] or 0) > 365
     atc_rows = sorted(({"code": g, "name": ATC_GROUPS.get(g, "Unclassified"), "open": n,
-                        "outdated": atc_out[g]} for g, n in atc.items()), key=lambda x: -x["open"])
+                        "no_update": atc_out[g]} for g, n in atc.items()), key=lambda x: -x["open"])
 
     # What changed in the last 7 days.
     week_ago = (today - dt.timedelta(days=7)).isoformat()
@@ -162,12 +161,19 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
     snapshot = {
         "date": today.isoformat(),
         "open": stats["open_reports"],
-        "outdated_pct": round(100 * stats["confidence_labels"].get("Probably outdated", 0) / max(1, stats["open_reports"]), 1),
+        "no_update_12m_pct": stats["not_updated_in"]["over_365_days"]["pct"],
         "no_end_pct": stats["no_end_date_given"]["pct"],
         "dup_pct": stats["duplicates"]["pct_of_open_reports_that_are_extra"],
         "tier3": stats["tier_3_open"],
     }
-    hist = [h for h in (history or []) if h.get("date") != snapshot["date"]] + [snapshot]
+    old = []
+    for h in history or []:
+        h = dict(h)
+        if "no_update_12m_pct" not in h and "outdated_pct" in h:  # older builds used a different name
+            h["no_update_12m_pct"] = h.pop("outdated_pct")
+        if h.get("date") != snapshot["date"]:
+            old.append(h)
+    hist = old + [snapshot]
     hist.sort(key=lambda h: h["date"])
 
     return {
@@ -184,7 +190,10 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
             "resolved_7d": len(ended),
         },
         "quality": {
-            "labels": [{"label": c, "count": stats["confidence_labels"].get(c, 0)} for c in reversed(CONF_ORDER)],
+            "labels": [{"label": c, "count": stats["freshness_labels"].get(c, 0)} for c in FRESH_ORDER],
+            "age_buckets": [{"label": name, "count": sum(1 for r in open_reports
+                             if r["quality"]["days_since_update"] is not None and lo <= r["quality"]["days_since_update"] <= hi)}
+                            for name, lo, hi in AGE_BUCKETS],
             "not_updated": stats["not_updated_in"],
             "no_end": stats["no_end_date_given"],
             "past_end": stats["past_estimated_end_date"],

@@ -337,6 +337,9 @@ _SUPPLY_RE = re.compile(
     re.IGNORECASE,
 )
 OPEN_STATUSES = ("active_confirmed", "anticipated_shortage")
+FRESHNESS_ORDER = ["Updated in last 14 days", "End date still ahead", "No end date given",
+                   "No update in 12+ months", "Past estimated end date"]
+CHECK_FIRST = {"No update in 12+ months", "Past estimated end date"}
 
 
 def _today() -> dt.date:
@@ -365,20 +368,22 @@ def quality_flags(summary: dict, today: dt.date | None = None) -> dict:
     m = _SUPPLY_RE.search(comments)
     partial = m.group(0) if m else None
 
+    # Factual labels only: each one states a date fact, never a judgement.
     if not open_:
         label = "Closed report"
-    elif (past_due_days > 180) or (days_since_update is not None and days_since_update > 365):
-        label = "Probably outdated"
     elif past_due_days > 0:
-        label = "Overdue for update"
+        label = "Past estimated end date"
+    elif days_since_update is not None and days_since_update > 365:
+        label = "No update in 12+ months"
     elif summary.get("end_date_unknown") or not end:
         label = "No end date given"
     elif days_since_update is not None and days_since_update <= 14:
-        label = "Recently updated"
+        label = "Updated in last 14 days"
     else:
-        label = "Current per report"
+        label = "End date still ahead"
     return {
-        "confidence": label,
+        "freshness": label,
+        "check_with_supplier": label in CHECK_FIRST,
         "end_date_passed_days": past_due_days,
         "days_since_update": days_since_update,
         "partial_supply": partial,
@@ -521,8 +526,8 @@ def check_watchlist(items: list[str], include_anticipated: bool = True) -> dict:
             flag = "OK"
         elif any(c["tier_3"] for c in current):
             flag = "TIER 3"
-        elif all(c["quality"]["confidence"] == "Probably outdated" for c in current):
-            flag = "AFFECTED (reports look outdated, confirm with supplier)"
+        elif all(c["quality"]["check_with_supplier"] for c in current):
+            flag = "AFFECTED (reports past their end date or not updated in 12+ months; confirm with supplier)"
         else:
             flag = "AFFECTED"
         out.append({"item": item, "flag": flag, "current_reports": current})
@@ -607,7 +612,7 @@ def quality_stats(reports: list[dict], today: dt.date | None = None, top_n: int 
     n = len(reports)
     pct = lambda k: round(100 * k / n, 1) if n else 0.0
     by_status = Counter(str(r.get("status")) for r in reports)
-    conf = Counter(r["quality"]["confidence"] for r in reports)
+    conf = Counter(r["quality"]["freshness"] for r in reports)
     past = [r for r in reports if r["quality"]["end_date_passed_days"] > 0]
     buckets = Counter()
     for r in past:
@@ -631,18 +636,18 @@ def quality_stats(reports: list[dict], today: dt.date | None = None, top_n: int 
         c = per_co[r.get("company") or "UNKNOWN"]
         c["open"] += 1
         c["past_due"] += r["quality"]["end_date_passed_days"] > 0
-        c["outdated"] += r["quality"]["confidence"] == "Probably outdated"
+        c["no_update_12m"] += (r["quality"]["days_since_update"] or 0) > 365
     companies = sorted(
         ({"company": k, "open_reports": v["open"], "past_end_date": v["past_due"],
           "past_end_date_pct": round(100 * v["past_due"] / v["open"], 1),
-          "probably_outdated": v["outdated"]} for k, v in per_co.items()),
+          "no_update_12m": v["no_update_12m"]} for k, v in per_co.items()),
         key=lambda x: (-x["past_end_date"], -x["open_reports"]))[:top_n]
     examples = sorted(past, key=lambda r: -r["quality"]["end_date_passed_days"])[:top_n]
     return {
         "open_reports": n,
         "by_status": dict(by_status),
         "tier_3_open": tier3,
-        "confidence_labels": dict(conf),
+        "freshness_labels": dict(conf),
         "past_estimated_end_date": {"count": len(past), "pct": pct(len(past)), "how_late": dict(buckets)},
         "no_end_date_given": {"count": no_end, "pct": pct(no_end)},
         "not_updated_in": {f"over_{k}_days": {"count": v, "pct": pct(v)} for k, v in not_upd.items()},

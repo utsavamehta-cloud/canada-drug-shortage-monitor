@@ -2,7 +2,7 @@
 
 Open tools that make Canada's official drug shortage data easier to use and easier to trust.
 
-- **A public dashboard**, rebuilt every day: what's short right now, with duplicate reports merged and a data-confidence label on every report. **Live site:** _add your GitHub Pages link here_
+- **A public dashboard**, rebuilt every day: what's short right now, with duplicate reports merged and a report-freshness label on every report. **Live site:** https://utsavamehta-cloud.github.io/canada-drug-shortage-monitor/
 - **A Claude MCP server**, so pharmacists, analysts and developers can ask about shortages in plain language from Claude.
 
 ## Why
@@ -14,7 +14,7 @@ Drug companies in Canada must report every shortage to Health Canada's reporting
 - 10% duplicates (158 products with 2 to 4 open reports each)
 - 106 reports past their own estimated end date, 71 of them by more than a year
 
-Pharmacists end up double-checking every report by phone. This project labels each report so you can see at a glance which ones to trust.
+An old report is not necessarily wrong, since some shortages really do last a long time. But pharmacists can't tell from the report alone, so they double-check by phone. This project labels every report with plain date facts (when it was last updated, whether its end date has passed) so you can see at a glance which ones to confirm with your supplier.
 
 > Information only, from manufacturer reports to Health Canada. Not medical advice. Independent project, not affiliated with Health Canada or the operator of the reporting site.
 
@@ -24,18 +24,20 @@ Two views plus a method page:
 
 | View | For | What it shows |
 | --- | --- | --- |
-| What's short now | Pharmacists, clinics, long-term care | Every product with an open report (merged by DIN), Tier 3 first, with search and filters by status, data confidence and therapeutic group, plus what changed in the last 7 days |
-| Data reliability | Health Canada, provinces, associations, researchers | Share of open reports that look outdated, by therapeutic group and by company, with a daily trend line |
+| What's short now | Pharmacists, clinics, long-term care | Every product with an open report (merged by DIN), Tier 3 first, with search and filters by status, report freshness and therapeutic group, plus what changed in the last 7 days |
+| Report freshness | Health Canada, provinces, associations, researchers | Time since each open report was last updated, by therapeutic group and by company, with a daily trend line |
 
-Data confidence labels:
+Report freshness labels. Each one states a date fact from the report itself, never a judgement:
 
-| Label | Rule |
+| Label | Rule (checked in this order) |
 | --- | --- |
-| Recently updated | Changed in the last 14 days, end date not passed |
-| Current per report | End date still in the future |
+| Past estimated end date | Report still open, but the end date the company gave has passed |
+| No update in 12+ months | Report still open and not changed in over a year |
 | No end date given | No estimated end date |
-| Overdue for update | End date passed less than 6 months ago, report still open |
-| Probably outdated | End date passed more than 6 months ago, or no update in over a year |
+| Updated in last 14 days | Changed in the last 14 days |
+| End date still ahead | Everything else: the end date is in the future |
+
+The first two are flagged `check_with_supplier`. They are prompts to confirm, not findings of fault.
 
 Build it yourself:
 
@@ -77,7 +79,7 @@ It connects to two official sources:
 |---|---|
 | `search_shortages` | Search by name, ingredient, company or DIN, with optional status filter |
 | `get_report` | Full detail of one shortage or discontinuation report |
-| `check_watchlist` | Check up to 50 DINs or names at once; flags OK / AFFECTED / TIER 3, and warns when a drug's only reports look outdated |
+| `check_watchlist` | Check up to 50 DINs or names at once; flags OK / AFFECTED / TIER 3, and notes when a drug's only reports are past their end date or not updated in 12+ months |
 | `list_tier3` | Current Tier 3 (highest-impact) reports |
 | `recent_updates` | Newest updated reports by status, for a daily digest |
 | `lookup_drug` | Drug details from the Drug Product Database |
@@ -85,7 +87,7 @@ It connects to two official sources:
 | `data_quality_scan` | Scans every open report and returns summary numbers: past end date, not updated, duplicates, partial supply, companies with the most overdue reports |
 | `build_dashboard` | Builds the dashboard from live data and saves it on your computer |
 
-Every report carries a `quality` block: the confidence label, days past the estimated end date, days since the last update, any partial-supply note ("100 BTL available"), and how many open reports exist for the same DIN.
+Every report carries a `quality` block: the freshness label, a `check_with_supplier` flag, days past the estimated end date, days since the last update, any partial-supply note ("100 BTL available"), and how many open reports exist for the same DIN.
 
 ### Setup (about 10 minutes)
 

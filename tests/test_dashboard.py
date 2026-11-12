@@ -63,7 +63,10 @@ def test_build_dashboard(tmp_path, monkeypatch):
     assert data["kpi"]["open_reports"] == 400
     assert data["kpi"]["products"] == len({r["din"] for r in reps})  # merged by DIN
     assert sum(l["count"] for l in data["quality"]["labels"]) == 400
-    assert len(json.loads(hist.read_text())) == 2
+    h = json.loads(hist.read_text())
+    assert len(h) == 2 and all("no_update_12m_pct" in p and "outdated_pct" not in p for p in h)
+    assert sum(b["count"] for b in data["quality"]["age_buckets"]) == 400
+    assert "outdated" not in html.lower().replace("outdated_pct", "")
     assert any(r["nrep"] > 1 for r in [dict(r, nrep=len(r["reports"])) for r in data["rows"]])
     assert data["rows"][0]["tier3"] is True  # Tier 3 sorted first
     assert all(c["open"] >= 10 for c in data["companies"])

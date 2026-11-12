@@ -257,13 +257,15 @@ TODAY = _dt.date(2026, 11, 12)
 
 def test_quality_labels():
     q = lambda r: s.quality_flags(r, TODAY)
-    assert q(_rep(1, "1", "active_confirmed", "2026-12-01", "2026-11-05"))["confidence"] == "Recently updated"
-    assert q(_rep(1, "1", "active_confirmed", "2026-12-01", "2026-09-01"))["confidence"] == "Current per report"
+    assert q(_rep(1, "1", "active_confirmed", "2026-12-01", "2026-11-05"))["freshness"] == "Updated in last 14 days"
+    assert q(_rep(1, "1", "active_confirmed", "2026-12-01", "2026-09-01"))["freshness"] == "End date still ahead"
     over = q(_rep(1, "1", "active_confirmed", "2026-10-01", "2026-09-01"))
-    assert over["confidence"] == "Overdue for update" and over["end_date_passed_days"] == 42
-    assert q(_rep(1, "1", "active_confirmed", "2022-12-01", "2022-12-10"))["confidence"] == "Probably outdated"
-    assert q(_rep(1, "1", "active_confirmed", None, "2026-11-01", unknown=True))["confidence"] == "No end date given"
-    assert q(_rep(1, "1", "resolved", "2020-01-01", "2020-01-01"))["confidence"] == "Closed report"
+    assert over["freshness"] == "Past estimated end date" and over["end_date_passed_days"] == 42 and over["check_with_supplier"]
+    assert q(_rep(1, "1", "active_confirmed", "2022-12-01", "2022-12-10"))["freshness"] == "Past estimated end date"
+    stale = q(_rep(1, "1", "active_confirmed", None, "2025-06-01", unknown=True))
+    assert stale["freshness"] == "No update in 12+ months" and stale["check_with_supplier"]
+    assert q(_rep(1, "1", "active_confirmed", None, "2026-11-01", unknown=True))["freshness"] == "No end date given"
+    assert q(_rep(1, "1", "resolved", "2020-01-01", "2020-01-01"))["freshness"] == "Closed report"
     assert q(_rep(1, "1", "active_confirmed", "2026-12-01", "2026-11-05", comments="100 BTL available"))["partial_supply"] == "100 BTL available"
     assert q(_rep(1, "1", "active_confirmed", "2026-12-01", "2026-11-05", comments="30 BLS available"))["partial_supply"]
     assert q(_rep(1, "1", "active_confirmed", "2026-12-01", "2026-11-05", comments="No stock"))["partial_supply"] is None
@@ -292,7 +294,7 @@ def test_quality_stats():
 def test_search_results_carry_quality():
     out = s.search_shortages(query="amoxil")
     r = [x for x in out["reports"] if x["report_id"] == 101][0]
-    assert "confidence" in r["quality"] and r["quality"]["open_reports_for_same_din"] == 1
+    assert "freshness" in r["quality"] and r["quality"]["open_reports_for_same_din"] == 1
 
 
 def test_scan_tool_registered():
