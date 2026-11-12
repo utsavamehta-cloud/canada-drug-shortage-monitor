@@ -1,0 +1,59 @@
+name: Daily dashboard
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # every day at 14:00 UTC (6 am Pacific in winter, 7 am in summer)
+  workflow_dispatch:         # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write            # to save data/history.json back to the repo
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install .
+
+      - name: Build dashboard from live data
+        env:
+          HPSC_EMAIL: ${{ secrets.HPSC_EMAIL }}
+          HPSC_PASSWORD: ${{ secrets.HPSC_PASSWORD }}
+          SITE_AUTHOR: ${{ vars.SITE_AUTHOR }}
+          SITE_AUTHOR_URL: ${{ vars.SITE_AUTHOR_URL }}
+          SITE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: hpsc-dashboard --out site --history data/history.json
+
+      - name: Save the daily trend point
+        run: |
+          git config user.name "dashboard-bot"
+          git config user.email "dashboard-bot@users.noreply.github.com"
+          git add data/history.json
+          git commit -m "Daily data snapshot $(date -u +%F)" || echo "No change"
+          git push
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
