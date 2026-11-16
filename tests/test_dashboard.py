@@ -160,6 +160,7 @@ def test_impact_label_and_sort():
     assert g["m"][-1][0] == "02000001"  # products with no open report are listed first
     assert payload["kpi"]["none_left"] == 2 and payload["kpi"]["matched"] == 3
     assert payload["dpd"] == {"marketed_products": 6}
+    assert g["check"] is False and rows["02000001"]["check"] is False  # oral capsule: no presentation caution
 
     # Three of four short -> "most"; all four -> "none_left".
     more = reports + [_open_report(5, "02000002"), _open_report(6, "02000003", "anticipated_shortage")]
@@ -174,3 +175,10 @@ def test_build_survives_missing_dpd(monkeypatch):
         raise RuntimeError("no network")
     monkeypatch.setattr(dashboard.dpd_extract, "fetch", boom)
     assert dashboard.collect_products() is None
+
+
+def test_presentation_check_rule():
+    from hpsc_mcp.dpd_extract import needs_presentation_check as chk
+    assert chk(["SUBCUTANEOUS"], []) and chk(["INTRAVENOUS"], []) and chk(["INHALATION"], []) and chk(["TRANSDERMAL"], [])
+    assert chk(["ORAL"], ["Schedule D"])           # biologic, whatever the route
+    assert not chk(["ORAL"], ["Prescription"]) and not chk(["TOPICAL"], []) and not chk(["OPHTHALMIC"], [])

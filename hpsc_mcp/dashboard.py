@@ -121,10 +121,12 @@ def add_groups(rows: list[dict], products: list[dict] | None) -> dict | None:
                 "n": len(mem),
                 "s": sum(m["din"] in short_dins for m in mem),
                 "m": [[m["din"], m["brand"], m["company"]] for m in mem],
+                # Injectable, inhaled, patch or biologic: same ingredient is not always the same presentation.
+                "check": any(m.get("check") for m in mem),
             }
         g = groups[ids[key]]
         g["impact"] = impact_of(g["n"], g["s"])
-        r.update({"g": ids[key], "gn": g["n"], "gs": g["s"], "impact": g["impact"]})
+        r.update({"g": ids[key], "gn": g["n"], "gs": g["s"], "impact": g["impact"], "check": g["check"]})
     return groups
 
 

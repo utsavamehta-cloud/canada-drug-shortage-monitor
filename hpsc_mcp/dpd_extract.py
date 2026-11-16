@@ -38,6 +38,18 @@ FORM_NAME = 2
 ROUTE_NAME = 2
 STATUS_CURRENT, STATUS_NAME = 1, 2
 COMP_NAME = 3
+SCHEDULE_NAME = 1
+
+# Routes where products with the same ingredient and strength often differ in
+# presentation (vial, pen, cartridge, inhaler device, patch design).
+_PRESENTATION_ROUTES = ("INTRA", "SUBCUT", "INJECT", "INHAL", "TRANSDERMAL", "EPIDURAL", "INFILTRATION", "BLOCK")
+
+
+def needs_presentation_check(routes, schedules) -> bool:
+    """True for injectable, inhaled and patch products, and for Schedule D (biologic) products."""
+    if any("SCHEDULE D" in s.upper() for s in schedules):
+        return True
+    return any(word in r.upper() for r in routes for word in _PRESENTATION_ROUTES)
 
 
 class DPDExtractError(RuntimeError):
@@ -150,6 +162,11 @@ def load(source: bytes | str | os.PathLike) -> list[dict]:
         if code in drugs and code not in company:
             company[code] = _cell(row, COMP_NAME)
 
+    schedules: dict[str, set] = defaultdict(set)
+    for row in _rows(zf, "schedule.txt"):
+        if row[DRUG_CODE].strip() in drugs and _cell(row, SCHEDULE_NAME):
+            schedules[row[DRUG_CODE].strip()].add(_cell(row, SCHEDULE_NAME))
+
     # Current status. If the file has no usable status rows, trust that the
     # extract is the marketed one and keep everything.
     current: dict[str, str] = {}
@@ -171,6 +188,7 @@ def load(source: bytes | str | os.PathLike) -> list[dict]:
         products.append({
             "din": d["din"], "brand": d["brand"], "company": company.get(code, ""),
             "ingredients": list(ing), "forms": list(frm), "routes": list(rte),
+            "check": needs_presentation_check(rte, schedules.get(code, ())),
             "key": "|".join([";".join(f"{n}={s}" for n, s in ing), ",".join(frm), ",".join(rte)]),
             "label": " · ".join(p for p in [
                 " + ".join(f"{n.title()} {s.lower()}".strip() for n, s in ing),

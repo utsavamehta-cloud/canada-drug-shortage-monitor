@@ -31,11 +31,12 @@ Two views plus a method page:
 
 Same-ingredient supply. For each product with an open report, the build looks up the other marketed products with the same active ingredient(s), strength, dosage form and route in Health Canada's [Drug Product Database extract](https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database/what-data-extract-drug-product-database.html) and counts how many of them also have an open report:
 
-| Label | Rule |
+| Label beside a short product | Meaning |
 | --- | --- |
-| No other product left | Every marketed product in the group has an open report, or it is the only one of its kind |
-| Half or more short | At least half of the group has an open report |
-| Under half short | Most of the group has no open report |
+| Green: "3 other products, no open report" | At least one other marketed product in the group has no open report |
+| Amber: "... · check presentation" | Same, but the group is injectable, inhaled, a patch or a biologic (Schedule D), where products can differ in presentation or brand |
+| Red: "All 3 others also short" / "No other marketed product" | Every marketed product in the group has an open report, or it is the only one of its kind |
+| Grey: "Not on marketed list" | The DIN is not in the list of marketed human products |
 
 "No open report" is not a stock check: a maker can be on allocation or out at the wholesaler without a report. A same-ingredient match is not a statement of interchangeability, which depends on the provincial formulary. The monitor does not suggest therapeutic alternatives. If the extract can't be downloaded, the dashboard still builds without these views (`--no-dpd` skips it on purpose).
 

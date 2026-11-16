@@ -143,7 +143,7 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
       <div class="filters">
         <input type="search" id="q" placeholder="Search drug, ingredient, DIN or company" aria-label="Search">
         <select id="f-status" aria-label="Status"><option value="">All statuses</option><option value="active_confirmed">Actual shortage</option><option value="anticipated_shortage">Anticipated</option></select>
-        <select id="f-impact" aria-label="Same-ingredient supply" class="dpd-only"><option value="">Any same-ingredient supply</option><option value="none_left">No other product left</option><option value="most">Half or more short</option><option value="some">Under half short</option></select>
+        <select id="f-impact" aria-label="Same-ingredient products" class="dpd-only"><option value="">Any same-ingredient picture</option><option value="none_left">No other product without a report</option><option value="option">Another product has no open report</option><option value="unknown">Not on marketed list</option></select>
         <select id="f-conf" aria-label="Report freshness"><option value="">Any report freshness</option></select>
         <select id="f-atc" aria-label="Therapeutic group"><option value="">All therapeutic groups</option></select>
         <label><input type="checkbox" id="f-t3"> Tier 3 only</label>
@@ -153,7 +153,7 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
       <table aria-describedby="count">
         <thead><tr>
           <th><span style="position:absolute;left:-9999px">Watchlist</span></th><th data-k="brand">Drug</th><th data-k="company">Company</th><th data-k="status">Status</th>
-          <th data-k="impact" class="dpd-only" title="Other marketed products with the same ingredient, strength, form and route">Same-ingredient products</th>
+          <th data-k="impact" class="dpd-only" title="Other marketed products with the same ingredient, strength, form and route">Other same-ingredient products</th>
           <th data-k="fresh">Report freshness</th><th data-k="est_end">Est. end</th><th data-k="updated">Last updated</th><th data-k="nrep">Reports</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -175,12 +175,12 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
       <p class="note">Each line is one drug at one strength and form. It shows every marketed product in that group and whether it has an open shortage report. Only groups with at least one open report are listed.</p>
       <div class="filters">
         <input type="search" id="gq" placeholder="Search ingredient, brand, DIN or company" aria-label="Search groups">
-        <select id="g-impact" aria-label="Same-ingredient supply"><option value="">Any same-ingredient supply</option><option value="none_left">No other product left</option><option value="most">Half or more short</option><option value="some">Under half short</option></select>
+        <select id="g-impact" aria-label="Same-ingredient products"><option value="">Any same-ingredient picture</option><option value="none_left">Every product has an open report</option><option value="option">At least one product has no open report</option></select>
         <span class="count" id="gcount"></span>
       </div>
       <div style="overflow-x:auto">
       <table aria-describedby="gcount">
-        <thead><tr><th>Drug, strength, form and route</th><th>Open reports</th><th>Not reported short</th><th>Supply picture</th></tr></thead>
+        <thead><tr><th>Drug, strength, form and route</th><th>With an open report</th><th>With no open report</th><th>Picture</th></tr></thead>
         <tbody id="gbody"></tbody>
       </table>
       </div>
@@ -203,7 +203,7 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
       <div class="kpis" id="w-kpis"></div>
       <div style="overflow-x:auto">
       <table>
-        <thead><tr><th><span style="position:absolute;left:-9999px">Remove</span></th><th>Drug</th><th>DIN</th><th>Status today</th><th class="dpd-only">Same-ingredient products</th><th>Est. end</th><th>Last updated</th></tr></thead>
+        <thead><tr><th><span style="position:absolute;left:-9999px">Remove</span></th><th>Drug</th><th>DIN</th><th>Status today</th><th class="dpd-only">Other same-ingredient products</th><th>Est. end</th><th>Last updated</th></tr></thead>
         <tbody id="wbody"></tbody>
       </table>
       </div>
@@ -256,10 +256,12 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
       <p>Companies must update a report within 2 calendar days of any change, and post within 2 days of being able to meet demand again (<a href="https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-shortages/regulations-guidance.html" target="_blank" rel="noopener">Health Canada</a>). A report can be correct and still unchanged for a long time, so the last two labels are prompts to confirm with your supplier, not findings of fault.</p>
       <h2>Same-ingredient products</h2>
       <p>For every product with an open report, the monitor lists the other marketed products with the same active ingredient(s), strength, dosage form and route, taken from Health Canada's <a href="https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database.html" target="_blank" rel="noopener">Drug Product Database</a>, and shows which of them also have an open shortage report. Ingredients are matched on the base name, so makers using different salts of the same base are grouped together.</p>
+      <p>Beside each short product, the label counts only the <em>other</em> products in its group:</p>
       <dl>
-        <dt>No other product left</dt><dd>Every marketed product in the group has an open report, or it is the only marketed product of its kind.</dd>
-        <dt>Half or more short</dt><dd>At least half of the marketed products in the group have an open report.</dd>
-        <dt>Under half short</dt><dd>Most marketed products in the group have no open report.</dd>
+        <dt>Green: "3 other products, no open report"</dt><dd>At least one other marketed product with the same ingredient, strength, form and route has no open shortage report.</dd>
+        <dt>Amber: "... · check presentation"</dt><dd>The same, but the group is injectable, inhaled, a patch or a biologic (Schedule D). These can differ in presentation (vial, pen, cartridge, device) or be a different brand that is not a straight swap.</dd>
+        <dt>Red: "All 3 others also short" or "No other marketed product"</dt><dd>Every marketed product in the group has an open report, or this is the only marketed product of its kind.</dd>
+        <dt>Grey: "Not on marketed list"</dt><dd>The DIN is not in Health Canada's list of marketed human products, so no comparison is made. The product may no longer be marketed, or it is a veterinary or radiopharmaceutical product.</dd>
       </dl>
       <p>"No open report" is not a stock check. A maker without a report can still be on allocation or out at your wholesaler, and an open report can be out of date (see the freshness label). A same-ingredient match is not a statement that two products are interchangeable; that depends on your provincial formulary and the patient. This monitor does not suggest a different drug as a therapeutic alternative.</p>
       <h2>Watchlist</h2>
@@ -303,18 +305,34 @@ const d8 = (v) => { const s = String(v ?? "").replace(/\D/g, ""); return s ? s.p
 const rowByDin = {}, nameByDin = {};
 DATA.rows.forEach(r => { if (r.din) rowByDin[d8(r.din)] = r; });
 Object.values(GROUPS).forEach(g => g.m.forEach(m => { nameByDin[m[0]] = {brand: m[1], company: m[2], label: g.label}; }));
-const IMPACT = {
-  none_left: {c: "var(--critical)", ink: "var(--critical-ink)", rank: 0},
-  most:      {c: "var(--serious)",  ink: "var(--serious-ink)",  rank: 1},
-  some:      {c: "var(--good)",     ink: "var(--good-ink)",     rank: 2},
-  unknown:   {c: "var(--muted)",    ink: "var(--text-3)",       rank: 3},
+const IMPACT = {none_left: {rank: 0}, most: {rank: 1}, some: {rank: 2}, unknown: {rank: 3}};
+const TONE = {
+  none:    {c: "var(--critical)", ink: "var(--critical-ink)"},  // no other product without an open report
+  check:   {c: "var(--warning)",  ink: "var(--warning-ink)"},   // others exist, but check presentation or brand
+  option:  {c: "var(--good)",     ink: "var(--good-ink)"},      // at least one other product with no open report
+  unknown: {c: "var(--muted)",    ink: "var(--text-3)"},
 };
-function impactText(impact, n, s) {
-  if (impact === "unknown") return "Not matched";
-  if (impact === "none_left") return n === 1 ? "No other marketed product" : `All ${n} products short`;
-  return `${n - s} of ${n} not reported short`;
+const plural = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+const CHECK_NOTE = "Injectable, inhaled, patch and biologic products with the same ingredient can differ in presentation (vial, pen, cartridge, device) or be a different brand. Check before treating them as options.";
+// self = true: the wording is about one short product and counts only the OTHER products in its group.
+function impactText(impact, n, s, self) {
+  if (impact === "unknown") return "Not on marketed list";
+  const ok = n - s;  // products in the group with no open report
+  if (self) {
+    if (n === 1) return "No other marketed product";
+    if (ok === 0) return n === 2 ? "The 1 other product is also short" : `All ${n - 1} others also short`;
+    return `${plural(ok, "other product")}, no open report`;
+  }
+  if (n === 1) return "Only marketed product, short";
+  if (ok === 0) return `All ${n} products short`;
+  return `${ok} of ${n} with no open report`;
 }
-const impactBadge = (impact, n, s) => `<span class="badge" style="color:${IMPACT[impact].ink}" title="${impact === "unknown" ? "This DIN was not found in the marketed product list" : "Marketed products with the same ingredient, strength, form and route"}"><span class="dot" style="background:${IMPACT[impact].c}"></span>${impactText(impact, n, s)}</span>`;
+function impactBadge(impact, n, s, self, check) {
+  const tone = TONE[impact === "unknown" ? "unknown" : impact === "none_left" ? "none" : check ? "check" : "option"];
+  const title = impact === "unknown" ? "This DIN is not in Health Canada's list of marketed products. The product may no longer be marketed."
+    : "Marketed products with the same ingredient, strength, form and route." + (check ? " " + CHECK_NOTE : "");
+  return `<span class="badge" style="color:${tone.ink};white-space:normal" title="${esc(title)}"><span class="dot" style="background:${tone.c}"></span>${impactText(impact, n, s, self)}${check && impact !== "unknown" && impact !== "none_left" ? " · check presentation" : ""}</span>`;
+}
 
 // Watchlist (saved in this browser only)
 const store = {
@@ -337,7 +355,7 @@ function memberList(gid, selfDin) {
       : `<span class="tag ok">No open report</span>`;
     return `<li>${star(m[0])}<span class="who"><b>${esc(m[1])}</b>${m[0] === selfDin ? " (this product)" : ""}<br><small>${esc(m[2])} · DIN ${esc(m[0])}</small></span>${state}</li>`;
   }).join("");
-  return `<div class="grouphead">${esc(g.label)}: ${g.n - g.s} of ${g.n} marketed product${g.n === 1 ? "" : "s"} not reported short</div><ul class="members">${li}</ul>`;
+  return `<div class="grouphead">${esc(g.label)}: ${g.n - g.s} of ${plural(g.n, "marketed product")} with no open report</div>${g.check ? `<div style="margin-top:4px">${CHECK_NOTE}</div>` : ""}<ul class="members">${li}</ul>`;
 }
 
 // Header
@@ -367,7 +385,7 @@ $("#kpis-now").innerHTML =
   kpi(fmt(k.actual), "actual shortage reports") +
   kpi(fmt(k.anticipated), "anticipated shortage reports") +
   kpi(fmt(k.tier3), "Tier 3 (highest impact)", true) +
-  (DATA.dpd ? kpi(fmt(k.none_left), "with no other same-ingredient product left") : "") +
+  (DATA.dpd ? kpi(fmt(k.none_left), "have no other same-ingredient product without a report") : "") +
   kpi(fmt(k.changed_7d), "new or updated in 7 days");
 const outPct = q.not_updated.over_365_days.pct;
 $("#kpis-rel").innerHTML =
@@ -400,7 +418,7 @@ DATA.rows.forEach(r => { r.nrep = r.reports.length; r._s = `${r.brand} ${r.name}
 
 function filtered() {
   const t = $("#q").value.trim().toLowerCase(), st = $("#f-status").value, cf = $("#f-conf").value, ag = $("#f-atc").value, t3 = $("#f-t3").checked, im = $("#f-impact").value;
-  let rows = DATA.rows.filter(r => (!t || r._s.includes(t)) && (!st || r.status === st) && (!cf || r.fresh === cf) && (!ag || r.atcg === ag) && (!t3 || r.tier3) && (!im || r.impact === im));
+  let rows = DATA.rows.filter(r => (!t || r._s.includes(t)) && (!st || r.status === st) && (!cf || r.fresh === cf) && (!ag || r.atcg === ag) && (!t3 || r.tier3) && (!im || (im === "option" ? (r.impact === "most" || r.impact === "some") : r.impact === im)));
   if (sortKey) rows = [...rows].sort((a, b) => {
     let x = a[sortKey], y = b[sortKey];
     if (sortKey === "fresh") { x = CONF_RANK[x]; y = CONF_RANK[y]; }
@@ -423,7 +441,7 @@ function render() {
       <td class="drug"><b>${esc(r.brand)}</b>${r.tier3 ? '<span class="pill" title="Tier 3: highest potential impact">Tier 3</span>' : ""}<small>${esc(r.name)} · ${esc(r.strength)} · ${esc(r.form)}</small><small class="num">DIN ${esc(r.din) || "—"}</small></td>
       <td>${esc(r.company)}</td>
       <td class="${r.status === "anticipated_shortage" ? "status-anticipated" : ""}">${STATUS[r.status]}</td>
-      <td class="dpd-only">${impactBadge(r.impact, r.gn, r.gs)}</td>
+      <td class="dpd-only">${impactBadge(r.impact, r.gn, r.gs, true, r.check)}</td>
       <td>${badge(r.fresh)}</td><td class="num">${fmtDate(r.est_end)}</td><td class="num">${fmtDate(r.updated)}</td>
       <td class="num">${r.nrep}${r.nrep > 1 ? " (merged)" : ""}</td></tr>`;
     const det = open === key ? `<tr class="detail"><td colspan="10">
@@ -453,14 +471,14 @@ const GLIST = Object.entries(GROUPS).map(([id, g]) => ({id, ...g,
 let gpage = 0, gopen = null;
 function renderGroups() {
   const t = $("#gq").value.trim().toLowerCase(), im = $("#g-impact").value;
-  const rows = GLIST.filter(g => (!t || g._s.includes(t)) && (!im || g.impact === im));
+  const rows = GLIST.filter(g => (!t || g._s.includes(t)) && (!im || (im === "option" ? g.impact !== "none_left" : g.impact === im)));
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   gpage = Math.min(gpage, pages - 1);
   $("#gcount").textContent = `${fmt(rows.length)} of ${fmt(GLIST.length)} drug groups with an open report`;
   $("#gpage").textContent = `Page ${gpage + 1} of ${pages}`;
   $("#gprev").disabled = gpage === 0; $("#gnext").disabled = gpage >= pages - 1;
   $("#gbody").innerHTML = rows.slice(gpage * PAGE, gpage * PAGE + PAGE).map(g =>
-    `<tr class="row" data-g="${g.id}" tabindex="0"><td class="drug"><b>${esc(g.label)}</b></td><td class="num">${g.s}</td><td class="num">${g.n - g.s}</td><td>${impactBadge(g.impact, g.n, g.s)}</td></tr>` +
+    `<tr class="row" data-g="${g.id}" tabindex="0"><td class="drug"><b>${esc(g.label)}</b></td><td class="num">${g.s}</td><td class="num">${g.n - g.s}</td><td>${impactBadge(g.impact, g.n, g.s, false, g.check)}</td></tr>` +
     (gopen === g.id ? `<tr class="detail"><td colspan="4">${memberList(g.id, null)}</td></tr>` : "")
   ).join("") || `<tr><td colspan="4">No open shortage report matches this search. Either nothing in that group is reported short, or it is spelled differently in the official data.</td></tr>`;
 }
@@ -482,7 +500,7 @@ function renderWatch() {
   const fresh = visit.prev ? short.filter(i => (i.r.updated || "") > visit.prev) : [];
   $("#w-kpis").innerHTML = watch.size ? kpi(fmt(watch.size), "products on my list") +
     kpi(fmt(short.length), "have an open shortage report", short.length > 0) +
-    (DATA.dpd ? kpi(fmt(short.filter(i => i.r.impact === "none_left").length), "with no other same-ingredient product left") : "") +
+    (DATA.dpd ? kpi(fmt(short.filter(i => i.r.impact === "none_left").length), "of those have no other same-ingredient product without a report") : "") +
     (visit.prev ? kpi(fmt(fresh.length), `changed since my last visit (${fmtDate(visit.prev)})`) : "") : "";
   $("#wbody").innerHTML = items.map(({din, r, n}) => {
     const isNew = r && visit.prev && (r.updated || "") > visit.prev;
@@ -490,7 +508,7 @@ function renderWatch() {
       : n ? `<b>${esc(n.brand)}</b><small>${esc(n.label)} · ${esc(n.company)}</small>` : `<small>Not in today's shortage data</small>`;
     return `<tr><td>${star(din)}</td><td class="drug">${name}</td><td class="num">${esc(din)}</td>
       <td>${r ? `<span class="tag short">${STATUS[r.status]}</span>` : `<span class="tag ok">No open report</span>`}${isNew ? ` <span class="tag new">Changed since last visit</span>` : ""}</td>
-      <td class="dpd-only">${r ? impactBadge(r.impact, r.gn, r.gs) : "—"}</td>
+      <td class="dpd-only">${r ? impactBadge(r.impact, r.gn, r.gs, true, r.check) : "—"}</td>
       <td class="num">${r ? fmtDate(r.est_end) : "—"}</td><td class="num">${r ? fmtDate(r.updated) : "—"}</td></tr>`;
   }).join("") || `<tr><td colspan="7">Your watchlist is empty. Paste your DINs above, or use the star beside any product.</td></tr>`;
 }
