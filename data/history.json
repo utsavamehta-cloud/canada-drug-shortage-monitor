@@ -30,5 +30,13 @@
   "no_end_pct": 60.3,
   "dup_pct": 10.2,
   "tier3": 30
+ },
+ {
+  "date": "2026-11-16",
+  "open": 1770,
+  "no_update_12m_pct": 50.5,
+  "no_end_pct": 59.3,
+  "dup_pct": 10.2,
+  "tier3": 30
  }
 ]
