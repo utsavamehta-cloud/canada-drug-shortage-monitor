@@ -1,6 +1,6 @@
 [project]
 name = "hpsc-mcp"
-version = "0.5.0"
+version = "0.6.0"
 description = "MCP server for Health Product Shortages Canada (drug shortages and discontinuations) plus Health Canada's Drug Product Database"
 readme = "README.md"
 requires-python = ">=3.10"

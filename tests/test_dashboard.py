@@ -99,11 +99,13 @@ def make_extract():
         (7, "02000007", "DOG-AMOXI", "VETCO", "AMOXICILLIN", "500", "CAPSULE", "MARKETED"),
         (8, "2000008", "PMS-AMOXI", "PHARMASCIENCE INC", "AMOXICILLIN", "500", "CAPSULE", "MARKETED"),
     ]
-    files = {"drug.txt": [], "ingred.txt": [], "form.txt": [], "route.txt": [], "status.txt": [], "comp.txt": []}
+    files = {"drug.txt": [], "ingred.txt": [], "form.txt": [], "route.txt": [], "status.txt": [], "comp.txt": [], "ther.txt": []}
     for code, din, brand, co, ing, strength, form, status in prods:
         cls = "Veterinary" if code == 7 else "Human"
         files["drug.txt"].append([code, "", cls, din, brand, "", "N", "", "1", "02-NOV-2026", "0100000001", "", brand, ""])
         files["ingred.txt"].append([code, 100, ing, "I", strength, "MG", "", "", "N", "", "", ing, "MG", "", ""])
+        atc = ("J01XX01", "RAREMYCIN") if "RARE" in ing else ("J01CA04", "AMOXICILLIN")
+        files["ther.txt"].append([code, atc[0], atc[1], "", "", atc[1], ""])
         files["form.txt"].append([code, 10, form, form])
         files["route.txt"].append([code, 20, "ORAL", "ORALE"])
         files["status.txt"].append([code, "N", "APPROVED", "01-JAN-2010", "APPROUVE", "", ""])
@@ -183,3 +185,61 @@ def test_presentation_check_rule():
     assert chk(["SUBCUTANEOUS"], []) and chk(["INTRAVENOUS"], []) and chk(["INHALATION"], []) and chk(["TRANSDERMAL"], [])
     assert chk(["ORAL"], ["Schedule D"])           # biologic, whatever the route
     assert not chk(["ORAL"], ["Prescription"]) and not chk(["TOPICAL"], []) and not chk(["OPHTHALMIC"], [])
+
+
+def test_market_file_and_history():
+    from hpsc_mcp import dpd_extract
+    prods = dpd_extract.load(make_extract())
+    assert {p["atc"] for p in prods} == {"J01CA04", "J01XX01"}
+    resolved = [{"din": "02000001"}, {"din": "02000001"}, {"din": "02000005"}, {"din": "09999999"}]
+    m = dashboard.build_market(prods, resolved, dt.date(2025, 11, 12))
+    assert sum(len(g[6]) for g in m["g"]) == 6 and len(m["g"]) == 3      # 500 mg x4, 250 mg x1, raremycin x1
+    amox500 = next(g for g in m["g"] if m["ing"][g[0]] == "Amoxicillin" and g[1] == "500 mg")
+    assert amox500[2:6] == ["Capsule", "Oral", 0, "J01CA04"] and len({x[2] for x in amox500[6]}) == 4
+    assert m["hist"] == {"02000001": 2, "02000005": 1} and m["atc"]["J01XX01"] == "Raremycin"
+    assert dashboard.build_market(prods, None, dt.date(2025, 11, 12))["hist"] is None
+
+
+def _new_report(i, din, **kw):
+    r = _open_report(i, din)
+    r.update(created="2026-11-09T12:00:00-05:00", updated="2026-11-10T12:00:00-05:00", **kw)
+    return r
+
+
+def test_weekly_brief_sections():
+    from hpsc_mcp import dpd_extract
+    prods = dpd_extract.load(make_extract())
+    today = dt.date(2026, 11, 12)
+    old = _open_report(9, "02000002"); old["created"] = "2026-01-01T12:00:00-05:00"
+    reports = [_new_report(1, "02000005", tier_3=True),   # only product of its kind
+               _new_report(2, "02000001"),                 # 4 makers, others free
+               _new_report(3, "02999999"),                 # not on the marketed list
+               old]
+    resolved = [s.summarize({"id": 5, "din": "02000003", "status": "resolved", "en_drug_brand_name": "JAMP-AMOXI",
+                             "company_name": "JAMP", "drug_strength": "500MG", "updated_date": "2026-11-11T12:00:00-05:00"})]
+    payload, _ = dashboard.build_payload(reports, resolved, today, products=prods)
+    b = payload["brief"]
+    assert b["counts"]["new"] == 3 and b["counts"]["none_left"] == 1 and b["counts"]["off_list"] == 1
+    assert [r["din"] for r in b["none_left"]] == ["02000005"] and b["none_left"][0]["impact"] == "no other marketed product"
+    assert [r["din"] for r in b["other"]] == ["02000001"] and b["few"] == []
+    assert b["other"][0]["impact"] == "2 other products with no open report" and b["other"][0]["makers"] == 4
+    assert [r["din"] for r in b["tier3"]] == ["02000005"] and b["tier3"][0]["changed"] is True
+    text = payload["brief_text"]
+    assert "2026-11-05 to 2026-11-12" in text and "JAMP-AMOXI" in text and "[Tier 3]" in text
+    assert "1 new report for products that are not on Health Canada's marketed list" in text
+
+
+def test_resolved_since_stops_at_cutoff():
+    rows = [{"id": 1000 + i, "din": f"02{i:06d}", "status": "resolved", "type": {"label": "shortage"},
+             "updated_date": (dt.date(2026, 11, 12) - dt.timedelta(days=i)).isoformat() + "T12:00:00-05:00"} for i in range(450)]
+    calls = []
+
+    def handler(req):
+        if req.url.path.endswith("/login"):
+            return httpx.Response(200, json={}, headers={"auth-token": "T"})
+        off = int(req.url.params.get("offset", 0)); calls.append(off)
+        return httpx.Response(200, json={"data": rows[off:off + 100]})
+    s._hpsc = s.HPSCClient("a@b.c", "p", "https://api.test/v1", transport=httpx.MockTransport(handler))
+    got = dashboard.collect_resolved_since(dt.date(2026, 11, 12) - dt.timedelta(days=150))
+    assert len(got) == 151 and calls == [0, 100]   # stops on the page that crosses the cutoff
+    s._hpsc = None

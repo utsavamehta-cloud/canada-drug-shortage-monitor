@@ -113,6 +113,25 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
 textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
 .msg { font-size: 13px; color: var(--text-2); }
+.btn.sm { font-size: 12.5px; padding: 3px 10px; }
+.btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+.sheet { max-width: 820px; }
+.sheet h2 { font-size: 22px; margin: 0 0 4px; }
+.sheet h3 { font-size: 16px; margin: 22px 0 6px; }
+.sheet p, .sheet li { font-size: 15px; }
+.sheet .facts td:first-child { color: var(--text-2); white-space: nowrap; width: 1%; padding-right: 18px; }
+.sheet .lines { border-bottom: 1px solid var(--line); height: 30px; }
+.handout p, .handout li { font-size: 17px; line-height: 1.55; }
+.handout h2 { font-size: 26px; }
+pre.brief { white-space: pre-wrap; font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2); border-radius: 8px; padding: 14px; margin: 0; }
+@media print {
+  header, footer, nav, .noprint, .star, .tip { display: none !important; }
+  body { background: #fff; color: #000; font-size: 12pt; }
+  main { padding: 0; } .wrap { max-width: none; padding: 0; }
+  .card { border: 0; padding: 0; margin: 0 0 12pt; background: none; }
+  a { color: #000; text-decoration: none; }
+  tr { break-inside: avoid; }
+}
 </style>
 </head>
 <body>
@@ -126,6 +145,8 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
       <button role="tab" id="t-now" aria-controls="p-now" aria-selected="false">All shortages</button>
       <button role="tab" id="t-alt" aria-controls="p-alt" aria-selected="false" class="dpd-only">Same-ingredient options</button>
       <button role="tab" id="t-watch" aria-controls="p-watch" aria-selected="false">My watchlist</button>
+      <button role="tab" id="t-risk" aria-controls="p-risk" aria-selected="false" class="dpd-only">Supply risk</button>
+      <button role="tab" id="t-brief" aria-controls="p-brief" aria-selected="false">Weekly brief</button>
       <button role="tab" id="t-rel" aria-controls="p-rel" aria-selected="false">Report freshness</button>
       <button role="tab" id="t-about" aria-controls="p-about" aria-selected="false">About &amp; method</button>
     </nav>
@@ -239,6 +260,59 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
     </div>
   </section>
 
+  <section role="tabpanel" id="p-risk" aria-labelledby="t-risk" hidden>
+    <div class="warnbar"><b>What this is.</b> Every marketed drug, strength and form in Canada that has only one or two makers, whether or not it is short today. Few makers means little room when one of them has a problem. This is a market fact from Health Canada's product list. It is not a clinical ranking and says nothing about how important a drug is for patients.</div>
+    <div class="kpis" id="rk-kpis"></div>
+    <div class="card">
+      <h2>Drugs with one or two makers</h2>
+      <p class="note" id="rk-note">One line per drug, strength, form and route. Click a line to see the products.</p>
+      <div class="filters noprint">
+        <input type="search" id="rk-q" placeholder="Search ingredient, brand, DIN or company" aria-label="Search">
+        <select id="rk-co" aria-label="Number of makers"><option value="">One or two makers</option><option value="1">One maker only</option><option value="2">Two makers</option></select>
+        <select id="rk-st" aria-label="Shortage status"><option value="">Any shortage status</option><option value="all">Every product has an open report</option><option value="short">At least one open report</option><option value="hist">Open report now or resolved in the past 12 months</option><option value="none">No open report</option></select>
+        <select id="rk-atc" aria-label="Therapeutic group"><option value="">All therapeutic groups</option></select>
+        <button class="btn" id="rk-csv">Download as CSV</button>
+        <span class="count" id="rk-count"></span>
+      </div>
+      <div style="overflow-x:auto">
+      <table aria-describedby="rk-count">
+        <thead><tr><th>Drug, strength, form and route</th><th>Makers</th><th>Marketed products</th><th>With an open report</th><th id="rk-hh">Resolved reports, past 12 months</th></tr></thead>
+        <tbody id="rk-body"><tr><td colspan="5">Loading the marketed product list…</td></tr></tbody>
+      </table>
+      </div>
+      <div class="pager noprint"><button id="rk-prev">Previous</button><span id="rk-page"></span><button id="rk-next">Next</button></div>
+    </div>
+  </section>
+
+  <section role="tabpanel" id="p-brief" aria-labelledby="t-brief" hidden>
+    <div class="filters noprint" style="margin-bottom:14px">
+      <h2 id="br-head" style="font-size:18px;margin:0;flex:1 1 300px"></h2>
+      <button class="btn primary" id="br-copy">Copy as text</button>
+      <button class="btn" id="br-print">Print</button>
+      <a class="btn" href="brief.txt" target="_blank" rel="noopener" style="text-decoration:none">Plain text file</a>
+      <span class="msg" id="br-msg" role="status"></span>
+    </div>
+    <div class="kpis" id="br-kpis"></div>
+    <div id="br-body"></div>
+    <div class="card noprint">
+      <h2>The same brief as plain text</h2>
+      <p class="note">Rebuilt every day and always covers the last 7 days. Paste it into an email, a newsletter or a team chat. The plain text file link stays the same from day to day.</p>
+      <pre class="brief" id="br-text"></pre>
+    </div>
+  </section>
+
+  <section role="tabpanel" id="p-sheet" hidden>
+    <div class="filters noprint" style="margin-bottom:14px">
+      <button class="btn" id="sh-back">Back</button>
+      <button class="btn" id="sh-work" aria-pressed="true">Pharmacist worksheet</button>
+      <button class="btn" id="sh-pat" aria-pressed="false">Patient handout</button>
+      <button class="btn primary" id="sh-print">Print</button>
+      <button class="btn" id="sh-link">Copy link to this page</button>
+      <span class="msg" id="sh-msg" role="status"></span>
+    </div>
+    <div class="card sheet" id="sh-body"></div>
+  </section>
+
   <section role="tabpanel" id="p-rel" aria-labelledby="t-rel" hidden>
     <div class="kpis" id="kpis-rel"></div>
     <div class="card chart">
@@ -293,6 +367,12 @@ textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; paddin
         <dt>Grey: "Not on marketed list"</dt><dd>The DIN is not in Health Canada's list of marketed human products, so no comparison is made. The product may no longer be marketed, or it is a veterinary or radiopharmaceutical product.</dd>
       </dl>
       <p>"No open report" is not a stock check. A maker without a report can still be on allocation or out at your wholesaler, and an open report can be out of date (see the freshness label). A same-ingredient match is not a statement that two products are interchangeable; that depends on your provincial formulary and the patient. This monitor does not suggest a different drug as a therapeutic alternative.</p>
+      <h2>Supply risk</h2>
+      <p>The Supply risk view lists every marketed drug, strength, form and route with only one or two makers, from Health Canada's Drug Product Database, and shows which of them have an open shortage report and how many of their reports were marked resolved in the past 12 months. It describes the market. It is not a clinical ranking, and a drug with one maker is not necessarily at risk of running out.</p>
+      <h2>Worksheets and patient handouts</h2>
+      <p>Each product with an open report has a printable pharmacist worksheet and a patient handout. The worksheet lists the same-ingredient products, the other strengths and forms of the same ingredient, and the other marketed drugs that share its ATC class code, each with its shortage status. The class list is a starting point for a pharmacist's own review. It is not a recommendation, and this monitor never suggests switching a patient to a different drug. The patient handout repeats what the company reported, in plain language, with general guidance only.</p>
+      <h2>Weekly brief</h2>
+      <p>The brief covers the last 7 days and is rebuilt every day. "New" means the company created the report in that period. It is also published as a plain text file at the same address each day.</p>
       <h2>Today</h2>
       <p>The Today view lists only the reports that are new or were changed in the chosen window (since your last visit, since yesterday, or in the last 7 days), split into those with no other same-ingredient product free of a report, those where another maker has no open report, and reports marked resolved. Changed reports for products that are not on the marketed list are left out of it and counted in a footnote. "Since your last visit" uses a date saved in your browser.</p>
       <h2>Watchlist</h2>
@@ -389,7 +469,7 @@ function memberList(gid, selfDin) {
     const state = r
       ? `<span class="tag short">Open report: ${STATUS[r.status]}</span> ${badge(r.fresh)} <span class="num">Est. end ${fmtDate(r.est_end)}</span>`
       : `<span class="tag ok">No open report</span>`;
-    return `<li>${star(m[0])}<span class="who"><b>${esc(m[1])}</b>${m[0] === selfDin ? " (this product)" : ""}<br><small>${esc(m[2])} · DIN ${esc(m[0])}</small></span>${state}</li>`;
+    return `<li>${star(m[0])}<span class="who"><b>${esc(m[1])}</b>${m[0] === selfDin ? " (this product)" : ""}<br><small>${esc(m[2])} · DIN ${esc(m[0])}</small></span>${state}${r ? ` <button class="btn sm noprint" data-sheet="${esc(m[0])}">Worksheet / handout</button>` : ""}</li>`;
   }).join("");
   return `<div class="grouphead">${esc(g.label)}: ${g.n - g.s} of ${plural(g.n, "marketed product")} with no open report</div>${g.check ? `<div style="margin-top:4px">${CHECK_NOTE}</div>` : ""}<ul class="members">${li}</ul>`;
 }
@@ -406,6 +486,8 @@ document.querySelectorAll('[role="tab"]').forEach(t => t.addEventListener("click
   document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = p.id !== t.getAttribute("aria-controls"));
   if (t.id === "t-rel") drawCharts();
   if (t.id === "t-watch") renderWatch();
+  if (t.id === "t-risk") loadMarket(renderRisk);
+  try { if (location.hash) history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
 }));
 
 // Tooltip
@@ -485,6 +567,7 @@ function render() {
       ${r.supply ? ` · <b>Company note:</b> ${esc(r.supply)}` : ""}${r.late ? " · <b>Filed late</b>" : ""}
       ${r.days_upd != null ? ` · <b>Days since update:</b> ${fmt(r.days_upd)}` : ""}<br>
       Official report${r.nrep > 1 ? "s" : ""}: ${r.reports.map(id => `<a href="${reportUrl(id)}" target="_blank" rel="noopener">#${id}</a>`).join(", ")}
+      ${!r.g && r.din ? ` · <button class="btn sm" data-sheet="${esc(d8(r.din))}">Worksheet / handout</button>` : ""}
       ${DATA.dpd ? `<div style="margin-top:10px">${r.g ? memberList(r.g, d8(r.din)) : "This DIN was not found in Health Canada's list of marketed products, so same-ingredient products can't be shown."}</div>` : ""}
     </td></tr>` : "";
     return row + det;
@@ -643,6 +726,225 @@ $("#p-today").addEventListener("click", e => {
 $("#p-today").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("tr.row")) e.target.click(); });
 if (DATA.dpd) $("#f-off-l").textContent = `Include products not on the marketed list (${fmt(DATA.rows.filter(r => r.impact === "unknown").length)})`;
 renderToday(); render();
+
+// ---------------------------------------------------------------------------
+// Whole marketed list (market.js), loaded only when a view needs it
+// ---------------------------------------------------------------------------
+let MK = null, mkLoading = false, mkFailed = false, mkWaiting = [];
+function prepMarket(m) {
+  const G = m.g.map((g, i) => {
+    const mem = g[6], dins = mem.map(x => x[0]);
+    return {i, ing: g[0], ingName: m.ing[g[0]], strength: g[1], form: g[2], route: g[3], check: !!g[4], atc: g[5], m: mem,
+      n: mem.length, makers: [...new Set(mem.map(x => m.co[x[2]]))], s: dins.filter(d => rowByDin[d]).length,
+      hist: m.hist ? dins.reduce((a, d) => a + (m.hist[d] || 0), 0) : null,
+      label: [m.ing[g[0]] + (g[1] ? " " + g[1] : ""), g[2], g[3]].filter(Boolean).join(" · ")};
+  });
+  const byDin = {}, byIng = {}, byAtc = {};
+  G.forEach(g => { g.m.forEach(x => byDin[x[0]] = g); (byIng[g.ing] = byIng[g.ing] || []).push(g);
+    if (g.atc.length >= 5) (byAtc[g.atc.slice(0, 5)] = byAtc[g.atc.slice(0, 5)] || []).push(g); });
+  return {raw: m, G, byDin, byIng, byAtc};
+}
+function loadMarket(cb) {
+  if (MK || !DATA.market_file || mkFailed) return cb(MK);
+  mkWaiting.push(cb);
+  if (mkLoading) return;
+  mkLoading = true;
+  const done = () => { mkLoading = false; const w = mkWaiting; mkWaiting = []; w.forEach(f => f(MK)); };
+  const sc = document.createElement("script");
+  sc.src = "market.js?d=" + encodeURIComponent(DATA.as_of);
+  sc.onload = () => { try { MK = prepMarket(window.MARKET); } catch (e) { mkFailed = true; } done(); };
+  sc.onerror = () => { mkFailed = true; done(); };
+  document.head.appendChild(sc);
+}
+const noMarket = "The marketed product list could not be loaded, so this part is not available right now.";
+
+// ---------------------------------------------------------------------------
+// Supply risk: drugs with one or two makers
+// ---------------------------------------------------------------------------
+let rkPage = 0, rkOpen = null, rkReady = false;
+Object.entries(DATA.atc_names || {}).forEach(([c, n]) => $("#rk-atc").insertAdjacentHTML("beforeend", `<option value="${c}">${esc(n)}</option>`));
+function rkRows() {
+  const t = $("#rk-q").value.trim().toLowerCase(), co = $("#rk-co").value, st = $("#rk-st").value, ag = $("#rk-atc").value;
+  return MK.few.filter(g => (!co || g.makers.length === +co) && (!ag || g.atc[0] === ag)
+    && (!st || (st === "all" ? g.s === g.n : st === "short" ? g.s > 0 : st === "hist" ? (g.s > 0 || g.hist > 0) : g.s === 0))
+    && (!t || g._s.includes(t)));
+}
+function renderRisk() {
+  if (!MK) { $("#rk-body").innerHTML = `<tr><td colspan="5">${noMarket}</td></tr>`; return; }
+  if (!rkReady) {
+    rkReady = true;
+    MK.few = MK.G.filter(g => g.makers.length <= 2);
+    MK.few.forEach(g => g._s = (g.label + " " + g.makers.join(" ") + " " + g.m.map(x => x[0] + " " + x[1]).join(" ")).toLowerCase());
+    MK.few.sort((a, b) => ((b.s === b.n) - (a.s === a.n)) || ((b.s > 0) - (a.s > 0)) || ((b.hist || 0) - (a.hist || 0)) || (a.makers.length - b.makers.length) || a.label.localeCompare(b.label));
+    const one = MK.few.filter(g => g.makers.length === 1), shortNow = MK.few.filter(g => g.s > 0), all = MK.few.filter(g => g.s === g.n);
+    $("#rk-kpis").innerHTML = kpi(fmt(MK.G.length), "drug, strength and form groups on the market") +
+      kpi(fmt(one.length), `have one maker (${Math.round(100 * one.length / MK.G.length)}%)`, true) +
+      kpi(fmt(MK.few.length - one.length), "have two makers") +
+      kpi(fmt(shortNow.length), "of these have an open shortage report") +
+      kpi(fmt(all.length), "have a report on every product");
+    if (MK.raw.hist == null) { $("#rk-hh").textContent = "Resolved reports (not available)"; }
+    else $("#rk-note").textContent += ` Resolved reports are counted from ${fmtDate(MK.raw.hist_from)}.`;
+  }
+  const rows = rkRows(), pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  rkPage = Math.min(rkPage, pages - 1);
+  $("#rk-count").textContent = `${fmt(rows.length)} of ${fmt(MK.few.length)} groups`;
+  $("#rk-page").textContent = `Page ${rkPage + 1} of ${pages}`;
+  $("#rk-prev").disabled = rkPage === 0; $("#rk-next").disabled = rkPage >= pages - 1;
+  $("#rk-body").innerHTML = rows.slice(rkPage * PAGE, rkPage * PAGE + PAGE).map(g => {
+    const tone = g.s === g.n ? TONE.none : g.s > 0 ? TONE.check : TONE.unknown;
+    return `<tr class="row" data-rk="${g.i}" tabindex="0"><td class="drug"><b>${esc(g.label)}</b></td><td>${esc(g.makers.join("; "))}</td><td class="num">${g.n}</td>
+      <td><span class="badge" style="color:${tone.ink}"><span class="dot" style="background:${tone.c}"></span>${g.s === 0 ? "None" : g.s === g.n ? (g.n === 1 ? "Yes, the only product" : `All ${g.n}`) : `${g.s} of ${g.n}`}</span></td>
+      <td class="num">${g.hist == null ? "—" : g.hist}</td></tr>` +
+      (rkOpen === g.i ? `<tr class="detail"><td colspan="5"><ul class="members" style="margin:0">${g.m.map(x => { const r = rowByDin[x[0]]; return `<li>${star(x[0])}<span class="who"><b>${esc(x[1])}</b><br><small>${esc(MK.raw.co[x[2]])} · DIN ${esc(x[0])}</small></span>${r ? `<span class="tag short">Open report: ${STATUS[r.status]}</span> ${badge(r.fresh)}` : `<span class="tag ok">No open report</span>`} <button class="btn sm" data-sheet="${esc(x[0])}">Worksheet</button></li>`; }).join("")}</ul></td></tr>` : "");
+  }).join("") || `<tr><td colspan="5">No groups match these filters.</td></tr>`;
+}
+["rk-q", "rk-co", "rk-st", "rk-atc"].forEach(id => $("#" + id).addEventListener("input", () => { rkPage = 0; if (MK) renderRisk(); }));
+$("#rk-prev").onclick = () => { rkPage--; renderRisk(); };
+$("#rk-next").onclick = () => { rkPage++; renderRisk(); };
+$("#rk-body").addEventListener("click", e => { const tr = e.target.closest("tr.row"); if (!tr || e.target.closest(".star")) return; rkOpen = rkOpen === +tr.dataset.rk ? null : +tr.dataset.rk; renderRisk(); });
+$("#rk-body").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("tr.row")) e.target.click(); });
+$("#rk-csv").onclick = () => {
+  if (!MK) return;
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [["ingredient", "strength", "form", "route", "atc", "makers", "maker_names", "marketed_products", "products_with_open_report", "resolved_reports_past_12_months", "dins"].join(",")]
+    .concat(rkRows().map(g => [g.ingName, g.strength, g.form, g.route, g.atc, g.makers.length, g.makers.join("; "), g.n, g.s, g.hist == null ? "" : g.hist, g.m.map(x => x[0]).join(" ")].map(q).join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], {type: "text/csv"}));
+  a.download = `canada-few-maker-drugs-${DATA.as_of}.csv`; document.body.appendChild(a); a.click(); a.remove();
+};
+
+// ---------------------------------------------------------------------------
+// Drug sheet: pharmacist worksheet and patient handout
+// ---------------------------------------------------------------------------
+let sheet = {din: null, mode: "work", back: "t-today"};
+const CHECK_FIRST = new Set(["No update in 12+ months", "Past estimated end date"]);
+function openSheet(din, mode) {
+  const cur = document.querySelector('[role="tab"][aria-selected="true"]');
+  sheet = {din: d8(din), mode: mode || "work", back: cur ? cur.id : sheet.back};
+  document.querySelectorAll('[role="tab"]').forEach(x => x.setAttribute("aria-selected", "false"));
+  document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = p.id !== "p-sheet");
+  renderSheet(); loadMarket(() => { if (!$("#p-sheet").hidden) renderSheet(); });
+  window.scrollTo(0, 0);
+}
+function patientHandout(r) {
+  const what = `${esc(r.name || r.brand)} ${esc(r.strength)} ${esc(r.form).toLowerCase()}`;
+  const others = r.gn - r.gs;
+  const means = r.impact === "none_left"
+      ? "Right now, every product with this medicine in this strength and form has a reported shortage. Your pharmacy may still have some on hand. If it does not, your pharmacist will talk with you, and with your prescriber if needed, about another option."
+    : r.impact === "unknown" ? "Your pharmacist will check what is available and talk with you about your options."
+    : r.check ? "Other products with the same medicine exist, but they can come in a different device or package. Your pharmacist will check whether one of them is right for you."
+    : `Other companies make the same medicine in the same strength and form. Health Canada lists ${plural(others, "other product")} with no reported shortage. Your pharmacist may be able to give you one of those. It has the same active ingredient, though the tablet or package may look different.`;
+  return `<div class="handout">
+    <h2>About the shortage of ${esc(r.brand)}</h2>
+    <p class="msg" style="font-size:15px">${what} · made by ${esc(r.company)}</p>
+    <h3>What is happening</h3>
+    <p>${r.status === "anticipated_shortage"
+      ? `${esc(r.company)} has told Health Canada that it expects to run short of this medicine${r.started ? ` from ${fmtDate(r.started)}` : ""}.`
+      : `${esc(r.company)} has told Health Canada that it cannot supply enough of this medicine right now${r.started ? `. The shortage was reported to start on ${fmtDate(r.started)}` : ""}.`}</p>
+    ${r.reason ? `<p><b>Reason the company gave:</b> ${esc(r.reason)}</p>` : ""}
+    <p><b>When it may end:</b> ${r.est_end ? `The company expects supply to return around ${fmtDate(r.est_end)}. These dates often change.` : "The company has not given an expected end date."}</p>
+    ${CHECK_FIRST.has(r.fresh) ? `<p>The company last updated this report on ${fmtDate(r.updated)}, so the situation may have changed. Your pharmacist can confirm.</p>` : ""}
+    <h3>What this means for you</h3>
+    <p>${means}</p>
+    <h3>What you can do</h3>
+    <ul>
+      <li>Speak to your pharmacy a few days before you need a refill. Do not wait until you have run out.</li>
+      <li>Do not stop, skip or change your dose unless your pharmacist or prescriber tells you to.</li>
+      <li>Please take only what you need, so that other patients are not left without.</li>
+    </ul>
+    <h3>Notes from your pharmacy</h3>
+    <div class="lines"></div><div class="lines"></div><div class="lines"></div>
+    <p class="msg" style="margin-top:18px">Source: manufacturer report${r.reports.length > 1 ? "s" : ""} ${r.reports.map(id => "#" + id).join(", ")} to Health Canada at healthproductshortages.ca, as of ${fmtDate(DATA.as_of)}. General information only. It is not medical advice and does not replace advice from your pharmacist or prescriber.</p>
+  </div>`;
+}
+function worksheet(din, r) {
+  const g = MK ? MK.byDin[din] : null;
+  const head = r ? `${esc(r.brand)}` : g ? esc((g.m.find(x => x[0] === din) || [])[1]) : `DIN ${esc(din)}`;
+  let html = `<h2>${head}: shortage worksheet</h2><p class="msg">DIN ${esc(din)} · prepared from data as of ${fmtDate(DATA.as_of)}</p>`;
+  html += r ? `<table class="facts"><tbody>
+      <tr><td>Product</td><td>${esc(r.name)} · ${esc(r.strength)} · ${esc(r.form)} · ${esc(r.route)}</td></tr>
+      <tr><td>Company</td><td>${esc(r.company)}</td></tr>
+      <tr><td>Status</td><td>${STATUS[r.status]}${r.tier3 ? ' <span class="pill">Tier 3</span>' : ""}</td></tr>
+      <tr><td>Reason given</td><td>${esc(r.reason) || "—"}</td></tr>
+      <tr><td>Started</td><td>${fmtDate(r.started)}</td></tr>
+      <tr><td>Estimated end</td><td>${fmtDate(r.est_end)}</td></tr>
+      <tr><td>Report last updated</td><td>${fmtDate(r.updated)} · ${badge(r.fresh)}</td></tr>
+      ${r.supply ? `<tr><td>Company note</td><td>${esc(r.supply)}</td></tr>` : ""}
+      <tr><td>Official report${r.reports.length > 1 ? "s" : ""}</td><td>${r.reports.map(id => `<a href="${reportUrl(id)}" target="_blank" rel="noopener">#${id}</a>`).join(", ")}</td></tr>
+    </tbody></table>` : `<p>This product has no open shortage report today.</p>`;
+  if (!DATA.market_file) return html + `<p class="msg">Same-ingredient and same-class lists need Health Canada's product list, which was not available for this build.</p>`;
+  if (!MK) return html + `<p class="msg">${mkFailed ? noMarket : "Loading the marketed product list…"}</p>`;
+  if (!g) return html + `<h3>Same ingredient</h3><p>This DIN is not on Health Canada's list of marketed human products, so no comparison can be made. The product may no longer be marketed.</p>`;
+  const stat = (x) => x.s === 0 ? `<span class="tag ok">None short</span>` : x.s === x.n ? `<span class="tag short">All ${x.n} short</span>` : `${x.s} of ${x.n} short`;
+  // A. same ingredient, strength, form, route
+  html += `<h3>A. Same ingredient, strength, form and route</h3><p class="msg">${esc(g.label)}. ${g.n - g.s} of ${plural(g.n, "marketed product")} with no open report.${g.check ? " " + CHECK_NOTE : ""}</p>
+    <table><thead><tr><th>Product</th><th>Company</th><th>DIN</th><th>Shortage report</th></tr></thead><tbody>${g.m.map(x => { const rr = rowByDin[x[0]];
+      return `<tr><td>${esc(x[1])}${x[0] === din ? " (this product)" : ""}</td><td>${esc(MK.raw.co[x[2]])}</td><td class="num">${esc(x[0])}</td><td>${rr ? `<span class="tag short">${STATUS[rr.status]}</span> est. end ${fmtDate(rr.est_end)}` : `<span class="tag ok">No open report</span>`}</td></tr>`; }).join("")}</tbody></table>`;
+  // B. same ingredient, other strengths or forms
+  const sib = (MK.byIng[g.ing] || []).filter(x => x !== g).sort((a, b) => a.form.localeCompare(b.form) || a.strength.localeCompare(b.strength, undefined, {numeric: true}));
+  html += `<h3>B. Same ingredient, other strengths or forms</h3>` + (sib.length ? `<table><thead><tr><th>Strength</th><th>Form</th><th>Route</th><th>Marketed products</th><th>Shortage reports</th></tr></thead><tbody>${sib.slice(0, 40).map(x =>
+      `<tr><td>${esc(x.strength)}</td><td>${esc(x.form)}</td><td>${esc(x.route)}</td><td class="num">${x.n}</td><td>${stat(x)}</td></tr>`).join("")}</tbody></table>${sib.length > 40 ? `<p class="msg">${sib.length - 40} more not shown.</p>` : ""}`
+    : `<p>No other strength or form of ${esc(g.ingName)} is marketed.</p>`);
+  // C. other drugs with the same ATC class code
+  const cls = g.atc.length >= 5 ? g.atc.slice(0, 5) : "";
+  const byName = {};
+  (cls ? MK.byAtc[cls] || [] : []).filter(x => x.ing !== g.ing).forEach(x => { const o = byName[x.ingName] = byName[x.ingName] || {name: x.ingName, n: 0, s: 0, makers: new Set(), atc: x.atc};
+    o.n += x.n; o.s += x.s; x.makers.forEach(mk => o.makers.add(mk)); });
+  const peers = Object.values(byName).sort((a, b) => (a.s / a.n - b.s / b.n) || b.n - a.n || a.name.localeCompare(b.name));
+  html += `<h3>C. Other drugs in the same class code${cls ? ` (ATC ${esc(cls)})` : ""}</h3>` + (!cls ? `<p>No ATC class code is recorded for this product.</p>`
+    : peers.length ? `<p class="msg">A list to start from, not a recommendation. Drugs that share a class code differ in dose, uses, interactions and coverage. This product is classed as ${esc(g.atc)}${MK.raw.atc[g.atc] ? " (" + esc(MK.raw.atc[g.atc]) + ")" : ""}.</p>
+      <table><thead><tr><th>Drug</th><th>ATC code</th><th>Makers</th><th>Marketed products, all strengths</th><th>Shortage reports</th></tr></thead><tbody>${peers.slice(0, 40).map(o =>
+      `<tr><td>${esc(o.name)}</td><td class="num">${esc(o.atc)}</td><td class="num">${o.makers.size}</td><td class="num">${o.n}</td><td>${stat(o)}</td></tr>`).join("")}</tbody></table>${peers.length > 40 ? `<p class="msg">${peers.length - 40} more not shown.</p>` : ""}`
+    : `<p>No other marketed drug shares this class code.</p>`);
+  html += `<h3>Notes</h3><div class="lines"></div><div class="lines"></div><div class="lines"></div>
+    <p class="msg" style="margin-top:18px">Sources: manufacturer reports to Health Canada (healthproductshortages.ca) and Health Canada's Drug Product Database, as of ${fmtDate(DATA.as_of)}. "No open report" is not a stock check. Same-ingredient and same-class matches are not statements of interchangeability or therapeutic equivalence. Clinical judgement, the provincial formulary and the patient's situation decide.</p>`;
+  return html;
+}
+function renderSheet() {
+  const r = rowByDin[sheet.din];
+  $("#sh-work").setAttribute("aria-pressed", sheet.mode === "work"); $("#sh-pat").setAttribute("aria-pressed", sheet.mode === "patient");
+  $("#sh-body").innerHTML = sheet.mode === "patient"
+    ? (r ? patientHandout(r) : `<h2>No patient handout</h2><p>DIN ${esc(sheet.din)} has no open shortage report today, so there is nothing to hand out.</p>`)
+    : worksheet(sheet.din, r);
+  try { history.replaceState(null, "", `#sheet/${sheet.din}/${sheet.mode}`); } catch (e) {}
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-sheet]"); if (b) { e.preventDefault(); openSheet(b.dataset.sheet, b.dataset.mode); } });
+$("#sh-work").onclick = () => { sheet.mode = "work"; renderSheet(); };
+$("#sh-pat").onclick = () => { sheet.mode = "patient"; renderSheet(); };
+$("#sh-print").onclick = () => window.print();
+$("#sh-back").onclick = () => { try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {} ($("#" + sheet.back) || $("#t-today")).click(); };
+$("#sh-link").onclick = async () => { try { await navigator.clipboard.writeText(location.href); $("#sh-msg").textContent = "Link copied."; } catch (e) { $("#sh-msg").textContent = "Copy the address from your browser's address bar."; } };
+
+// ---------------------------------------------------------------------------
+// Weekly brief
+// ---------------------------------------------------------------------------
+(function renderBrief() {
+  const b = DATA.brief, c = b.counts;
+  $("#br-head").textContent = `Weekly brief: ${fmtDate(b.from)} to ${fmtDate(b.to)}`;
+  $("#br-kpis").innerHTML = kpi(fmt(c.new), "products with a new shortage report") +
+    (b.has_dpd ? kpi(fmt(c.none_left), "of those have no other same-ingredient product", c.none_left > 0) + kpi(fmt(c.few), "more are on drugs with only one or two makers") : "") +
+    kpi(fmt(c.resolved), "reports marked resolved") + kpi(fmt(c.tier3_open), "Tier 3 reports open");
+  const table = (items, extra) => items.length ? `<div style="overflow-x:auto"><table><tbody>${items.map(r => `<tr>
+      <td class="drug"><b>${esc(r.brand)}</b>${r.tier3 ? '<span class="pill">Tier 3</span>' : ""}<small>${esc(r.name)} · ${esc(r.strength)} · ${esc(r.form)} · ${esc(r.company)} · DIN ${esc(r.din) || "—"}</small></td>
+      <td>${STATUS[r.status] || ""}</td><td>${esc(r.impact.charAt(0).toUpperCase() + r.impact.slice(1))}${extra && r.makers ? ` · ${plural(r.makers, "maker")}` : ""}</td>
+      <td class="num">Est. end ${fmtDate(r.est_end)}</td><td class="noprint">${r.din ? `<button class="btn sm" data-sheet="${esc(d8(r.din))}">Worksheet</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="msg">None this week.</p>`;
+  const card = (title, note, body) => `<div class="card"><h2>${title}</h2><p class="note">${note}</p>${body}</div>`;
+  const t3 = b.tier3.filter(r => r.changed);
+  $("#br-body").innerHTML = (b.has_dpd
+      ? card(`New, with no other same-ingredient product free of a report (${c.none_left})`, "These are the ones most likely to need a change of prescription.", table(b.none_left))
+        + card(`New, on drugs with only one or two makers (${c.few})`, "Another maker has no open report today, but there is little room if that changes.", table(b.few, true))
+        + card(`New, with another maker that has no open report (${c.other})`, "Usually handled by ordering a different maker.", table(b.other.slice(0, 30)) + (b.other.length > 30 ? `<p class="msg">${b.other.length - 30} more in the Today view and All shortages.</p>` : ""))
+      : card(`New shortage reports (${c.new})`, "", table(b.none_left.concat(b.few, b.other))))
+    + card(`Tier 3 reports new or changed this week (${t3.length} of ${b.tier3.length} open)`, "Tier 3 is Health Canada's flag for the shortages with the greatest potential impact.", table(t3))
+    + card(`Marked resolved (${c.resolved})`, "Reports the maker has closed.", b.resolved.length ? `<div style="overflow-x:auto"><table><tbody>${b.resolved.slice(0, 30).map(i => `<tr><td class="drug"><b>${esc(i.brand)}</b><small>${esc(i.strength)} · ${esc(i.company)} · DIN ${esc(i.din) || "—"}</small></td><td class="num">${fmtDate(i.updated)}</td></tr>`).join("")}</tbody></table></div>${b.resolved.length > 30 ? `<p class="msg">${b.resolved.length - 30} more not shown.</p>` : ""}` : `<p class="msg">None this week.</p>`)
+    + `<p class="msg">${c.off_list ? `${c.off_list} new reports are for products that are not on Health Canada's marketed list and are left out above. ` : ""}${c.no_update_12m_pct}% of all open reports have not been updated in over a year.</p>`;
+  $("#br-text").textContent = DATA.brief_text;
+  $("#br-print").onclick = () => window.print();
+  $("#br-copy").onclick = async () => { try { await navigator.clipboard.writeText(DATA.brief_text); $("#br-msg").textContent = "Copied."; } catch (e) { $("#br-msg").textContent = "Select the text below and copy it."; } };
+})();
+
+// Open a sheet straight from a shared link
+(() => { const m = location.hash.match(/^#sheet\/(\d{5,8})\/(work|patient)$/); if (m) openSheet(m[1], m[2]); })();
 
 // Company table
 let coKey = "no_update_pct", coDir = -1;

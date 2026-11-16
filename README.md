@@ -28,6 +28,9 @@ Two views plus a method page:
 | All shortages | Pharmacists, clinics, long-term care | Every product with an open report (merged by DIN), Tier 3 first, then the products with the fewest same-ingredient options left. Search and filters by status, same-ingredient supply, report freshness and therapeutic group, plus what changed in the last 7 days |
 | Same-ingredient options | Pharmacists | One line per drug, strength and form: every marketed product in that group and whether it has an open shortage report |
 | My watchlist | Pharmacists | Paste the DINs you stock (or star any product) and see only those, with what changed since your last visit. Saved in your browser only |
+| Supply risk | Associations, planners, researchers | Every marketed drug, strength and form with only one or two makers, its current shortage status and its resolved reports in the past 12 months, with CSV download |
+| Weekly brief | Association and pharmacy staff | The last 7 days in one page, also published as `brief.txt` for pasting into an email or newsletter |
+| Worksheet and patient handout | Pharmacists | Printable per-drug pages: same-ingredient products, other strengths and forms, other drugs with the same ATC class code, and a plain-language sheet for the patient |
 | Report freshness | Health Canada, provinces, associations, researchers | Time since each open report was last updated, by therapeutic group and by company, with a daily trend line |
 
 Same-ingredient supply. For each product with an open report, the build looks up the other marketed products with the same active ingredient(s), strength, dosage form and route in Health Canada's [Drug Product Database extract](https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database/what-data-extract-drug-product-database.html) and counts how many of them also have an open report:
@@ -60,7 +63,7 @@ pip install .
 hpsc-dashboard --out site --history data/history.json
 ```
 
-This writes `site/index.html` (one self-contained file) and `site/data.json`. It needs `HPSC_EMAIL` and `HPSC_PASSWORD` for a free account on healthproductshortages.ca.
+This writes `site/index.html`, `site/data.json`, `site/market.js` (the whole marketed product list, loaded only by the views that need it) and `site/brief.txt`. It needs `HPSC_EMAIL` and `HPSC_PASSWORD` for a free account on healthproductshortages.ca.
 
 ### Daily auto-publishing (GitHub Pages)
 

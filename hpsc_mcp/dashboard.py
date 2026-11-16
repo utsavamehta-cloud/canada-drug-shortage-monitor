@@ -75,6 +75,24 @@ def collect_products() -> list[dict] | None:
         return None
 
 
+def collect_resolved_since(cutoff: dt.date, max_pages: int = 60) -> list[dict] | None:
+    """Reports marked resolved since `cutoff` (newest first), for the shortage-history count.
+    Returns None if the API can't be paged this way; the dashboard then shows no history."""
+    out: list[dict] = []
+    try:
+        for page in range(max_pages):
+            rows, _ = s.hpsc().search(status="resolved", orderby="updated_date", order="desc",
+                                      limit=100, offset=page * 100)
+            batch = [s.summarize(r) for r in rows]
+            out.extend(r for r in batch if (_d(r.get("updated")) or "") >= cutoff.isoformat())
+            if len(rows) < 100 or any((_d(r.get("updated")) or "9") < cutoff.isoformat() for r in batch):
+                break
+    except Exception as e:
+        log.warning("Could not read resolved reports for the history count: %s", e)
+        return None
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Same-ingredient groups
 # ---------------------------------------------------------------------------
@@ -123,11 +141,128 @@ def add_groups(rows: list[dict], products: list[dict] | None) -> dict | None:
                 "m": [[m["din"], m["brand"], m["company"]] for m in mem],
                 # Injectable, inhaled, patch or biologic: same ingredient is not always the same presentation.
                 "check": any(m.get("check") for m in mem),
+                "co": len({m["company"] for m in mem}),  # distinct makers
             }
         g = groups[ids[key]]
         g["impact"] = impact_of(g["n"], g["s"])
         r.update({"g": ids[key], "gn": g["n"], "gs": g["s"], "impact": g["impact"], "check": g["check"]})
     return groups
+
+
+def build_market(products: list[dict], resolved_history: list[dict] | None, since: dt.date) -> dict:
+    """The whole marketed list in a compact shape, loaded by the page only when needed.
+
+    ing:  [name of the ingredient set]
+    g:    [ing index, strength, form, route, presentation-check flag, ATC code, [[din, brand, company index]]]
+    atc:  {ATC code: Health Canada's name for it}
+    hist: {din: number of reports marked resolved since `hist_from`}  (None if not available)
+    """
+    companies: dict[str, int] = {}
+    ings: dict[str, int] = {}
+    groups: dict[str, list] = {}
+    atc_names: dict[str, str] = {}
+    seen: set[str] = set()
+    for p in sorted(products, key=lambda p: (p["ing_name"], p["strength"], p["company"], p["brand"])):
+        if p["din"] in seen:
+            continue
+        seen.add(p["din"])
+        ci = companies.setdefault(p["company"], len(companies))
+        ii = ings.setdefault(p["ing_name"], len(ings))
+        g = groups.setdefault(p["key"], [ii, p["strength"], p["form"], p["route"], int(p["check"]), "", []])
+        if p["atc"] and not g[5]:
+            g[5] = p["atc"]
+            atc_names.setdefault(p["atc"], p["atc_name"])
+        g[6].append([p["din"], p["brand"], ci])
+    hist = None
+    if resolved_history is not None:
+        c = Counter(dpd_extract.din8(r["din"]) for r in resolved_history if r.get("din"))
+        hist = {d: n for d, n in c.items() if d in seen}
+    return {"co": list(companies), "ing": list(ings), "g": list(groups.values()), "atc": atc_names,
+            "hist": hist, "hist_from": since.isoformat()}
+
+
+def impact_text(r: dict) -> str:
+    """The same wording the page uses beside a short product."""
+    if r["impact"] == "unknown":
+        return "not on marketed list"
+    n, ok = r["gn"], r["gn"] - r["gs"]
+    if n == 1:
+        return "no other marketed product"
+    if ok == 0:
+        return "the 1 other product is also short" if n == 2 else f"all {n - 1} others also short"
+    return f"{ok} other product{'' if ok == 1 else 's'} with no open report" + (" (check presentation)" if r.get("check") else "")
+
+
+def build_brief(rows: list[dict], groups: dict | None, changes: dict, stats: dict, today: dt.date) -> dict:
+    """What changed in the last 7 days, sorted by how much room a pharmacist has to manoeuvre."""
+    new_dins = {dpd_extract.din8(i["din"]) for i in changes["new"] if i["din"]}
+    groups = groups or {}
+
+    def line(r: dict) -> dict:
+        g = groups.get(r["g"] or "", {})
+        return {"din": r["din"], "brand": r["brand"], "name": r["name"], "strength": r["strength"], "form": r["form"],
+                "company": r["company"], "status": r["status"], "tier3": r["tier3"], "est_end": r["est_end"],
+                "impact": impact_text(r), "makers": g.get("co")}
+
+    new_rows = [r for r in rows if dpd_extract.din8(r["din"]) in new_dins]
+    none_left = [r for r in new_rows if r["impact"] == "none_left"]
+    few = [r for r in new_rows if r["impact"] in ("most", "some") and groups.get(r["g"], {}).get("co", 9) <= 2]
+    other = [r for r in new_rows if r["impact"] in ("most", "some") and r not in few]
+    off = [r for r in new_rows if r["impact"] == "unknown"]
+    tier3 = [r for r in rows if r["tier3"]]
+    week_ago = (today - dt.timedelta(days=7)).isoformat()
+    return {
+        "from": week_ago, "to": today.isoformat(), "has_dpd": bool(groups),
+        "counts": {"new": len(new_rows), "none_left": len(none_left), "few": len(few), "other": len(other),
+                   "off_list": len(off), "updated": len(changes["updated"]), "resolved": len(changes["resolved"]),
+                   "tier3_open": len(tier3), "open_products": len(rows),
+                   "no_update_12m_pct": stats["not_updated_in"]["over_365_days"]["pct"]},
+        "none_left": [line(r) for r in none_left],
+        "few": [line(r) for r in few],
+        "other": [line(r) for r in other],
+        "tier3": [dict(line(r), changed=(r["updated"] or "") >= week_ago) for r in tier3],
+        "resolved": changes["resolved"],
+    }
+
+
+def brief_text(b: dict, site_url: str = "") -> str:
+    """The weekly brief as plain text, for pasting into an email or a note."""
+    def fmt(r: dict) -> str:
+        end = f"est. end {r['est_end']}" if r.get("est_end") else "no end date given"
+        t3 = " [Tier 3]" if r.get("tier3") else ""
+        return f"  - {r['brand']} {r['strength']} {r['form']} ({r['company']}, DIN {r['din'] or 'n/a'}){t3}: {r['impact']}; {end}"
+    c = b["counts"]
+    out = [f"Canadian drug shortage brief: {b['from']} to {b['to']}", "",
+           f"{c['new']} products with a new shortage report, {c['updated']} reports updated, {c['resolved']} marked resolved.",
+           f"{c['open_products']} products have an open report. {c['tier3_open']} are Tier 3.", ""]
+    sections = [("New, with no other same-ingredient product free of a report", b["none_left"]),
+                ("New, on drugs with only one or two makers", b["few"]),
+                ("New, with another maker that has no open report", b["other"])] if b["has_dpd"] else \
+               [("New shortage reports", b["none_left"] + b["few"] + b["other"])]
+    for title, items in sections:
+        out.append(f"{title} ({len(items)})")
+        out.extend(fmt(r) for r in items[:25])
+        if len(items) > 25:
+            out.append(f"  ... and {len(items) - 25} more")
+        if not items:
+            out.append("  None")
+        out.append("")
+    changed_t3 = [r for r in b["tier3"] if r["changed"]]
+    out.append(f"Tier 3 reports new or changed this week ({len(changed_t3)} of {len(b['tier3'])} open)")
+    out.extend(fmt(r) for r in changed_t3) if changed_t3 else out.append("  None")
+    out.append("")
+    out.append(f"Marked resolved ({len(b['resolved'])})")
+    out.extend(f"  - {i['brand']} {i['strength']} ({i['company']}, DIN {i['din'] or 'n/a'})" for i in b["resolved"][:25])
+    if len(b["resolved"]) > 25:
+        out.append(f"  ... and {len(b['resolved']) - 25} more")
+    if c["off_list"]:
+        out += ["", f"Not listed above: {c['off_list']} new report{'' if c['off_list'] == 1 else 's'} for products that are not on Health Canada's marketed list."]
+    out += ["", f"Data note: {c['no_update_12m_pct']}% of open reports have not been updated in over a year.",
+            "Source: manufacturer reports to Health Canada (healthproductshortages.ca) and Health Canada's Drug Product Database.",
+            "\"No open report\" is not a stock check. Same-ingredient matches are not statements of interchangeability. Not medical advice."]
+    if site_url:
+        out.append(site_url)
+    return "\n".join(out) + "\n"
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +385,7 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
             old.append(h)
     hist = old + [snapshot]
     hist.sort(key=lambda h: h["date"])
+    brief = build_brief(rows, groups, changes, stats, today)
 
     return {
         "generated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -270,6 +406,9 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
         "dpd": {"marketed_products": len({p["din"] for p in products}),
                 "dins": "".join(sorted({p["din"] for p in products}))} if products else None,
         "groups": groups or {},
+        "brief": brief,
+        "brief_text": brief_text(brief),
+        "atc_names": ATC_GROUPS,
         "quality": {
             "labels": [{"label": c, "count": stats["freshness_labels"].get(c, 0)} for c in FRESH_ORDER],
             "age_buckets": [{"label": name, "count": sum(1 for r in open_reports
@@ -314,13 +453,28 @@ def build(out_dir: str | os.PathLike, history_path: str | os.PathLike | None = N
     payload, hist = build_payload(open_reports, resolved, today, history, complete, products)
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    payload["market_file"] = False
+    market_summary = None
+    if products:
+        # The whole marketed list goes in its own file so the main page stays light.
+        since = today - dt.timedelta(days=365)
+        market = build_market(products, collect_resolved_since(since), since)
+        (out / "market.js").write_text("window.MARKET=" + json.dumps(market, separators=(",", ":"), ensure_ascii=False)
+                                       .replace("</", "<\\/") + ";", encoding="utf-8")
+        payload["market_file"] = True
+        makers = [len({m[2] for m in g[6]}) for g in market["g"]]
+        market_summary = {"groups": len(makers), "one_maker": makers.count(1), "two_makers": makers.count(2),
+                          "groups_with_atc": sum(1 for g in market["g"] if g[5]),
+                          "dins_with_resolved_reports_12m": None if market["hist"] is None else len(market["hist"]),
+                          "resolved_reports_12m": None if market["hist"] is None else sum(market["hist"].values())}
+    (out / "brief.txt").write_text(brief_text(payload["brief"], repo_url), encoding="utf-8")
     (out / "index.html").write_text(render_html(payload, author, author_url, repo_url), encoding="utf-8")
     (out / "data.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     if history_path:
         Path(history_path).parent.mkdir(parents=True, exist_ok=True)
         Path(history_path).write_text(json.dumps(hist, indent=1), encoding="utf-8")
     return {"index_html": str((out / "index.html").resolve()), "kpi": payload["kpi"], "complete": complete,
-            "same_ingredient_data": bool(products)}
+            "same_ingredient_data": bool(products), "brief": payload["brief"]["counts"], "market": market_summary}
 
 
 def main() -> None:

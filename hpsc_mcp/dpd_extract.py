@@ -39,6 +39,7 @@ ROUTE_NAME = 2
 STATUS_CURRENT, STATUS_NAME = 1, 2
 COMP_NAME = 3
 SCHEDULE_NAME = 1
+ATC_NUMBER, ATC_NAME = 1, 2
 
 # Routes where products with the same ingredient and strength often differ in
 # presentation (vial, pen, cartridge, inhaler device, patch design).
@@ -167,6 +168,12 @@ def load(source: bytes | str | os.PathLike) -> list[dict]:
         if row[DRUG_CODE].strip() in drugs and _cell(row, SCHEDULE_NAME):
             schedules[row[DRUG_CODE].strip()].add(_cell(row, SCHEDULE_NAME))
 
+    atc: dict[str, tuple[str, str]] = {}
+    for row in _rows(zf, "ther.txt"):
+        code, num = row[DRUG_CODE].strip(), _cell(row, ATC_NUMBER).upper()
+        if code in drugs and code not in atc and re.fullmatch(r"[A-Z]\d\d[A-Z0-9]{0,5}", num):
+            atc[code] = (num, _cell(row, ATC_NAME))
+
     # Current status. If the file has no usable status rows, trust that the
     # extract is the marketed one and keep everything.
     current: dict[str, str] = {}
@@ -189,6 +196,12 @@ def load(source: bytes | str | os.PathLike) -> list[dict]:
             "din": d["din"], "brand": d["brand"], "company": company.get(code, ""),
             "ingredients": list(ing), "forms": list(frm), "routes": list(rte),
             "check": needs_presentation_check(rte, schedules.get(code, ())),
+            # The same facts split up, for the whole-market file.
+            "ing_name": " + ".join(n.title() for n, _ in ing),
+            "strength": " + ".join(s.lower() for _, s in ing),
+            "form": ", ".join(f.capitalize() for f in frm),
+            "route": ", ".join(r.capitalize() for r in rte),
+            "atc": atc.get(code, ("", ""))[0], "atc_name": atc.get(code, ("", ""))[1].title(),
             "key": "|".join([";".join(f"{n}={s}" for n, s in ing), ",".join(frm), ",".join(rte)]),
             "label": " · ".join(p for p in [
                 " + ".join(f"{n.title()} {s.lower()}".strip() for n, s in ing),
