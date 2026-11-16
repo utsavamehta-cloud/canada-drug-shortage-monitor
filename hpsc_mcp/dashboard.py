@@ -19,6 +19,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from . import dpd_extract
 from . import server as s
 
 ATC_GROUPS = {
@@ -40,6 +41,9 @@ ATC_GROUPS = {
 FRESH_ORDER = s.FRESHNESS_ORDER  # fresh -> check first
 AGE_BUCKETS = [("Under 3 months", 0, 90), ("3 to 6 months", 91, 180), ("6 to 12 months", 181, 365), ("Over 1 year", 366, 10**6)]
 STATUS_LABEL = {"active_confirmed": "Actual shortage", "anticipated_shortage": "Anticipated"}
+# How much of the same-ingredient supply is reported short. Lower rank sorts first.
+IMPACT_RANK = {"none_left": 0, "most": 1, "some": 2, "unknown": 3}
+log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +63,71 @@ def collect(max_pages: int = 100) -> tuple[list[dict], list[dict], bool]:
     return open_reports, resolved, complete
 
 
+def collect_products() -> list[dict] | None:
+    """Marketed products from Health Canada's DPD extract, or None if it can't be read.
+
+    The dashboard still builds without it; the same-ingredient views are just left out.
+    """
+    try:
+        return dpd_extract.load(dpd_extract.fetch())
+    except Exception as e:  # network, format change, anything: never block the daily build
+        log.warning("DPD extract not available, building without same-ingredient data: %s", e)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Same-ingredient groups
+# ---------------------------------------------------------------------------
+
+def impact_of(total: int, short: int) -> str:
+    """none_left: every marketed same-ingredient product has an open report
+    (including when there is only one). most: half or more. some: under half."""
+    if total <= 0:
+        return "unknown"
+    if short >= total:
+        return "none_left"
+    return "most" if short * 2 >= total else "some"
+
+
+def add_groups(rows: list[dict], products: list[dict] | None) -> dict | None:
+    """Attach to every row the group of marketed products with the same
+    ingredient(s), strength, form and route. Returns the groups that contain at
+    least one product with an open report, keyed by a short id."""
+    if not products:
+        for r in rows:
+            r.update({"g": None, "gn": 0, "gs": 0, "impact": "unknown"})
+        return None
+    by_din: dict[str, dict] = {}
+    members: dict[str, list[dict]] = defaultdict(list)
+    for p in products:
+        if p["din"] in by_din:
+            continue
+        by_din[p["din"]] = p
+        members[p["key"]].append(p)
+    short_dins = {dpd_extract.din8(r["din"]) for r in rows if r["din"]}
+    groups: dict[str, dict] = {}
+    ids: dict[str, str] = {}
+    for r in rows:
+        p = by_din.get(dpd_extract.din8(r["din"])) if r["din"] else None
+        if not p:
+            r.update({"g": None, "gn": 0, "gs": 0, "impact": "unknown"})
+            continue
+        key = p["key"]
+        if key not in ids:
+            ids[key] = str(len(ids) + 1)
+            mem = sorted(members[key], key=lambda m: (m["din"] in short_dins, m["company"], m["brand"]))
+            groups[ids[key]] = {
+                "label": p["label"],
+                "n": len(mem),
+                "s": sum(m["din"] in short_dins for m in mem),
+                "m": [[m["din"], m["brand"], m["company"]] for m in mem],
+            }
+        g = groups[ids[key]]
+        g["impact"] = impact_of(g["n"], g["s"])
+        r.update({"g": ids[key], "gn": g["n"], "gs": g["s"], "impact": g["impact"]})
+    return groups
+
+
 # ---------------------------------------------------------------------------
 # Payload
 # ---------------------------------------------------------------------------
@@ -73,7 +142,8 @@ def _atc_group(code: Any) -> str:
 
 
 def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date,
-                  history: list[dict] | None = None, complete: bool = True) -> dict:
+                  history: list[dict] | None = None, complete: bool = True,
+                  products: list[dict] | None = None) -> dict:
     s.annotate(open_reports, today)
     stats = s.quality_stats(open_reports, today, top_n=15)
 
@@ -108,7 +178,10 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
             "atcg": _atc_group(lead.get("atc")),
             "days_upd": lead["quality"]["days_since_update"],
         })
-    rows.sort(key=lambda x: (x["tier3"], x["updated"] or ""), reverse=True)  # Tier 3 first, then newest
+    groups = add_groups(rows, products)
+    # Tier 3 first, then the products with the fewest same-ingredient options left, then newest.
+    rows.sort(key=lambda x: x["updated"] or "", reverse=True)
+    rows.sort(key=lambda x: (not x["tier3"], IMPACT_RANK[x["impact"]]))
 
     # Company freshness table (companies with 10+ open reports).
     per_co: dict[str, list[dict]] = defaultdict(list)
@@ -188,7 +261,11 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
             "tier3": stats["tier_3_open"],
             "changed_7d": len(new) + len(changed),
             "resolved_7d": len(ended),
+            "none_left": sum(1 for r in rows if r["impact"] == "none_left"),
+            "matched": sum(1 for r in rows if r["impact"] != "unknown"),
         },
+        "dpd": {"marketed_products": len({p["din"] for p in products})} if products else None,
+        "groups": groups or {},
         "quality": {
             "labels": [{"label": c, "count": stats["freshness_labels"].get(c, 0)} for c in FRESH_ORDER],
             "age_buckets": [{"label": name, "count": sum(1 for r in open_reports
@@ -221,13 +298,16 @@ def render_html(payload: dict, author: str = "", author_url: str = "", repo_url:
 
 
 def build(out_dir: str | os.PathLike, history_path: str | os.PathLike | None = None,
-          today: dt.date | None = None, author: str = "", author_url: str = "", repo_url: str = "") -> dict:
+          today: dt.date | None = None, author: str = "", author_url: str = "", repo_url: str = "",
+          products: list[dict] | None = None, use_dpd: bool = True) -> dict:
     today = today or dt.date.today()
     open_reports, resolved, complete = collect()
+    if products is None and use_dpd:
+        products = collect_products()
     history = []
     if history_path and Path(history_path).exists():
         history = json.loads(Path(history_path).read_text(encoding="utf-8"))
-    payload, hist = build_payload(open_reports, resolved, today, history, complete)
+    payload, hist = build_payload(open_reports, resolved, today, history, complete, products)
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.html").write_text(render_html(payload, author, author_url, repo_url), encoding="utf-8")
@@ -235,7 +315,8 @@ def build(out_dir: str | os.PathLike, history_path: str | os.PathLike | None = N
     if history_path:
         Path(history_path).parent.mkdir(parents=True, exist_ok=True)
         Path(history_path).write_text(json.dumps(hist, indent=1), encoding="utf-8")
-    return {"index_html": str((out / "index.html").resolve()), "kpi": payload["kpi"], "complete": complete}
+    return {"index_html": str((out / "index.html").resolve()), "kpi": payload["kpi"], "complete": complete,
+            "same_ingredient_data": bool(products)}
 
 
 def main() -> None:
@@ -245,9 +326,12 @@ def main() -> None:
     ap.add_argument("--author", default=os.environ.get("SITE_AUTHOR", ""))
     ap.add_argument("--author-url", default=os.environ.get("SITE_AUTHOR_URL", ""))
     ap.add_argument("--repo-url", default=os.environ.get("SITE_REPO_URL", ""))
+    ap.add_argument("--no-dpd", action="store_true",
+                    help="Skip Health Canada's Drug Product Database extract (no same-ingredient views)")
     a = ap.parse_args()
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    print(json.dumps(build(a.out, a.history, author=a.author, author_url=a.author_url, repo_url=a.repo_url), indent=1))
+    print(json.dumps(build(a.out, a.history, author=a.author, author_url=a.author_url, repo_url=a.repo_url,
+                           use_dpd=not a.no_dpd), indent=1))
 
 
 if __name__ == "__main__":

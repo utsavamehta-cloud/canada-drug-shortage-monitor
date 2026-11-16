@@ -24,8 +24,20 @@ Two views plus a method page:
 
 | View | For | What it shows |
 | --- | --- | --- |
-| What's short now | Pharmacists, clinics, long-term care | Every product with an open report (merged by DIN), Tier 3 first, with search and filters by status, report freshness and therapeutic group, plus what changed in the last 7 days |
+| What's short now | Pharmacists, clinics, long-term care | Every product with an open report (merged by DIN), Tier 3 first, then the products with the fewest same-ingredient options left. Search and filters by status, same-ingredient supply, report freshness and therapeutic group, plus what changed in the last 7 days |
+| Same-ingredient options | Pharmacists | One line per drug, strength and form: every marketed product in that group and whether it has an open shortage report |
+| My watchlist | Pharmacists | Paste the DINs you stock (or star any product) and see only those, with what changed since your last visit. Saved in your browser only |
 | Report freshness | Health Canada, provinces, associations, researchers | Time since each open report was last updated, by therapeutic group and by company, with a daily trend line |
+
+Same-ingredient supply. For each product with an open report, the build looks up the other marketed products with the same active ingredient(s), strength, dosage form and route in Health Canada's [Drug Product Database extract](https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database/what-data-extract-drug-product-database.html) and counts how many of them also have an open report:
+
+| Label | Rule |
+| --- | --- |
+| No other product left | Every marketed product in the group has an open report, or it is the only one of its kind |
+| Half or more short | At least half of the group has an open report |
+| Under half short | Most of the group has no open report |
+
+"No open report" is not a stock check: a maker can be on allocation or out at the wholesaler without a report. A same-ingredient match is not a statement of interchangeability, which depends on the provincial formulary. The monitor does not suggest therapeutic alternatives. If the extract can't be downloaded, the dashboard still builds without these views (`--no-dpd` skips it on purpose).
 
 Report freshness labels. Each one states a date fact from the report itself, never a judgement:
 

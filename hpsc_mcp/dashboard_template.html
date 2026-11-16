@@ -36,8 +36,8 @@ h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.01em; }
 .sub { color: var(--text-2); margin: 0 0 12px; }
 .stamp { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-2); background: var(--surface-2); border-radius: 99px; padding: 3px 12px; }
 .stamp b { color: var(--text); }
-nav { display: flex; gap: 4px; margin-top: 14px; }
-nav button { font: inherit; border: 0; background: none; color: var(--text-2); padding: 10px 14px; border-bottom: 3px solid transparent; cursor: pointer; }
+nav { display: flex; gap: 4px; margin-top: 14px; overflow-x: auto; }
+nav button { white-space: nowrap; font: inherit; border: 0; background: none; color: var(--text-2); padding: 10px 14px; border-bottom: 3px solid transparent; cursor: pointer; }
 nav button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 main { padding: 22px 0 60px; }
 section[role="tabpanel"][hidden] { display: none; }
@@ -66,6 +66,7 @@ tr.row:hover td { background: var(--surface-2); }
 tr.detail td { background: var(--surface-2); font-size: 13.5px; color: var(--text-2); }
 .drug b { color: var(--text); }
 .drug small { display: block; color: var(--text-3); }
+#p-now td.drug { min-width: 200px; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; white-space: nowrap; }
 .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
@@ -93,16 +94,37 @@ tr.detail td { background: var(--surface-2); font-size: 13.5px; color: var(--tex
 .prose dd { margin: 2px 0 0; color: var(--text-2); }
 footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line); padding: 18px 0 30px; }
 .warnbar { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; margin-bottom: 16px; }
+.no-dpd .dpd-only { display: none !important; }
+.star { font: inherit; font-size: 18px; line-height: 1; border: 0; background: none; color: var(--text-3); cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.star:hover { color: var(--text); background: var(--surface-2); }
+.star[aria-pressed="true"] { color: var(--warning-ink); }
+.members { list-style: none; margin: 8px 0 0; padding: 0; }
+.members li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 6px 0; border-top: 1px dashed var(--line); }
+.members .who { flex: 1 1 280px; color: var(--text); }
+.members .who small { color: var(--text-3); }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; white-space: nowrap; }
+.tag.ok { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good-ink); }
+.tag.short { background: color-mix(in srgb, var(--critical) 14%, transparent); color: var(--critical-ink); }
+.tag.new { background: var(--accent-soft); color: var(--accent); }
+.grouphead { color: var(--text); font-weight: 600; }
+.btn { font: inherit; font-size: 14px; padding: 7px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 8px; cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:hover { filter: brightness(.97); }
+textarea { font: inherit; font-size: 14px; width: 100%; min-height: 84px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); resize: vertical; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
+.msg { font-size: 13px; color: var(--text-2); }
 </style>
 </head>
 <body>
 <header>
   <div class="wrap">
     <h1>Canadian Drug Shortage Monitor</h1>
-    <p class="sub">A cleaned-up daily view of Canada's mandatory drug shortage reports, with a report-freshness label on every report.</p>
+    <p class="sub">Canada's mandatory drug shortage reports, rebuilt daily: what's short, which same-ingredient products are not reported short, and how fresh each report is.</p>
     <span class="stamp">Data as of <b id="asof"></b><span aria-hidden="true">·</span><span id="gen"></span></span>
     <nav role="tablist" aria-label="Views">
       <button role="tab" id="t-now" aria-controls="p-now" aria-selected="true">What's short now</button>
+      <button role="tab" id="t-alt" aria-controls="p-alt" aria-selected="false" class="dpd-only">Same-ingredient options</button>
+      <button role="tab" id="t-watch" aria-controls="p-watch" aria-selected="false">My watchlist</button>
       <button role="tab" id="t-rel" aria-controls="p-rel" aria-selected="false">Report freshness</button>
       <button role="tab" id="t-about" aria-controls="p-about" aria-selected="false">About &amp; method</button>
     </nav>
@@ -117,10 +139,11 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
 
     <div class="card">
       <h2>Drugs with open shortage reports</h2>
-      <p class="note">One row per product (DIN). Duplicate reports for the same product are merged. Click a row for details.</p>
+      <p class="note">One row per product (DIN). Duplicate reports for the same product are merged. Tier 3 first, then the products with the fewest same-ingredient options left. Click a row for details and the other makers. Use the star to add a product to your watchlist.</p>
       <div class="filters">
         <input type="search" id="q" placeholder="Search drug, ingredient, DIN or company" aria-label="Search">
         <select id="f-status" aria-label="Status"><option value="">All statuses</option><option value="active_confirmed">Actual shortage</option><option value="anticipated_shortage">Anticipated</option></select>
+        <select id="f-impact" aria-label="Same-ingredient supply" class="dpd-only"><option value="">Any same-ingredient supply</option><option value="none_left">No other product left</option><option value="most">Half or more short</option><option value="some">Under half short</option></select>
         <select id="f-conf" aria-label="Report freshness"><option value="">Any report freshness</option></select>
         <select id="f-atc" aria-label="Therapeutic group"><option value="">All therapeutic groups</option></select>
         <label><input type="checkbox" id="f-t3"> Tier 3 only</label>
@@ -129,7 +152,8 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
       <div style="overflow-x:auto">
       <table aria-describedby="count">
         <thead><tr>
-          <th data-k="brand">Drug</th><th data-k="din">DIN</th><th data-k="company">Company</th><th data-k="status">Status</th>
+          <th><span style="position:absolute;left:-9999px">Watchlist</span></th><th data-k="brand">Drug</th><th data-k="company">Company</th><th data-k="status">Status</th>
+          <th data-k="impact" class="dpd-only" title="Other marketed products with the same ingredient, strength, form and route">Same-ingredient products</th>
           <th data-k="fresh">Report freshness</th><th data-k="est_end">Est. end</th><th data-k="updated">Last updated</th><th data-k="nrep">Reports</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -141,6 +165,48 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
       <h2>What changed in the last 7 days</h2>
       <p class="note">New and updated open reports, and reports marked resolved.</p>
       <div class="changes" id="changes"></div>
+    </div>
+  </section>
+
+  <section role="tabpanel" id="p-alt" aria-labelledby="t-alt" hidden>
+    <div class="warnbar"><b>How to read this.</b> "No open report" means the maker has not reported a shortage to Health Canada. It does not mean your wholesaler has stock. Products are matched on ingredient, strength, form and route only; check interchangeability and coverage under your provincial formulary.</div>
+    <div class="card">
+      <h2>Which makers are not reported short?</h2>
+      <p class="note">Each line is one drug at one strength and form. It shows every marketed product in that group and whether it has an open shortage report. Only groups with at least one open report are listed.</p>
+      <div class="filters">
+        <input type="search" id="gq" placeholder="Search ingredient, brand, DIN or company" aria-label="Search groups">
+        <select id="g-impact" aria-label="Same-ingredient supply"><option value="">Any same-ingredient supply</option><option value="none_left">No other product left</option><option value="most">Half or more short</option><option value="some">Under half short</option></select>
+        <span class="count" id="gcount"></span>
+      </div>
+      <div style="overflow-x:auto">
+      <table aria-describedby="gcount">
+        <thead><tr><th>Drug, strength, form and route</th><th>Open reports</th><th>Not reported short</th><th>Supply picture</th></tr></thead>
+        <tbody id="gbody"></tbody>
+      </table>
+      </div>
+      <div class="pager"><button id="gprev">Previous</button><span id="gpage"></span><button id="gnext">Next</button></div>
+    </div>
+  </section>
+
+  <section role="tabpanel" id="p-watch" aria-labelledby="t-watch" hidden>
+    <div class="card">
+      <h2>My watchlist</h2>
+      <p class="note">Keep a list of the DINs you stock and check only those each morning. The list is saved in this browser on this device. Nothing is uploaded.</p>
+      <label for="w-in" class="msg">Paste DINs (any separator), then add them. Leading zeros are optional, so 621463 is read as 00621463. You can also use the star beside any product.</label>
+      <textarea id="w-in" placeholder="02242705, 02229977, 00544981"></textarea>
+      <div class="row-actions">
+        <button class="btn primary" id="w-add">Add to watchlist</button>
+        <button class="btn" id="w-copy">Copy my DIN list</button>
+        <button class="btn" id="w-clear">Clear list</button>
+        <span class="msg" id="w-msg" role="status"></span>
+      </div>
+      <div class="kpis" id="w-kpis"></div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th><span style="position:absolute;left:-9999px">Remove</span></th><th>Drug</th><th>DIN</th><th>Status today</th><th class="dpd-only">Same-ingredient products</th><th>Est. end</th><th>Last updated</th></tr></thead>
+        <tbody id="wbody"></tbody>
+      </table>
+      </div>
     </div>
   </section>
 
@@ -188,6 +254,16 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
         <dt>Past estimated end date</dt><dd>The report is still open, but the end date the company gave has already passed.</dd>
       </dl>
       <p>Companies must update a report within 2 calendar days of any change, and post within 2 days of being able to meet demand again (<a href="https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-shortages/regulations-guidance.html" target="_blank" rel="noopener">Health Canada</a>). A report can be correct and still unchanged for a long time, so the last two labels are prompts to confirm with your supplier, not findings of fault.</p>
+      <h2>Same-ingredient products</h2>
+      <p>For every product with an open report, the monitor lists the other marketed products with the same active ingredient(s), strength, dosage form and route, taken from Health Canada's <a href="https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database.html" target="_blank" rel="noopener">Drug Product Database</a>, and shows which of them also have an open shortage report. Ingredients are matched on the base name, so makers using different salts of the same base are grouped together.</p>
+      <dl>
+        <dt>No other product left</dt><dd>Every marketed product in the group has an open report, or it is the only marketed product of its kind.</dd>
+        <dt>Half or more short</dt><dd>At least half of the marketed products in the group have an open report.</dd>
+        <dt>Under half short</dt><dd>Most marketed products in the group have no open report.</dd>
+      </dl>
+      <p>"No open report" is not a stock check. A maker without a report can still be on allocation or out at your wholesaler, and an open report can be out of date (see the freshness label). A same-ingredient match is not a statement that two products are interchangeable; that depends on your provincial formulary and the patient. This monitor does not suggest a different drug as a therapeutic alternative.</p>
+      <h2>Watchlist</h2>
+      <p>The watchlist is stored only in your browser on your device. It is not sent to any server, so it does not follow you to another device or browser, and clearing your browser data removes it.</p>
       <h2>Method</h2>
       <p>Every open report (actual and anticipated) is pulled daily from the official public API, plus the 100 most recently resolved reports. Duplicates are merged by DIN; the most recently updated report leads each row. Every label states a date fact taken from the report itself; none is a judgement about the company or the shortage. Tier 3 is Health Canada's flag for the shortages with the greatest potential impact.</p>
       <h2>Limits</h2>
@@ -197,7 +273,7 @@ footer { color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line
   </section>
 </main>
 
-<footer><div class="wrap">Source: Health Product Shortages Canada public API. Independent project, not affiliated with Health Canada. <span id="foot"></span></div></footer>
+<footer><div class="wrap">Sources: Health Product Shortages Canada public API; Health Canada Drug Product Database. Independent project, not affiliated with Health Canada. <span id="foot"></span></div></footer>
 <div class="tip" id="tip" role="tooltip"></div>
 
 <script>
@@ -220,6 +296,50 @@ const reportUrl = (id) => `https://healthproductshortages.ca/shortage/${id}`;
 const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-CA", {year: "numeric", month: "short", day: "numeric"}) : "—";
 const badge = (conf) => `<span class="badge" style="color:${CONF[conf]?.ink || "inherit"}"><span class="dot" style="background:${CONF[conf]?.c}"></span>${esc(conf)}</span>`;
 
+// Same-ingredient supply
+if (!DATA.dpd) document.body.classList.add("no-dpd");
+const GROUPS = DATA.groups || {};
+const d8 = (v) => { const s = String(v ?? "").replace(/\D/g, ""); return s ? s.padStart(8, "0") : ""; };
+const rowByDin = {}, nameByDin = {};
+DATA.rows.forEach(r => { if (r.din) rowByDin[d8(r.din)] = r; });
+Object.values(GROUPS).forEach(g => g.m.forEach(m => { nameByDin[m[0]] = {brand: m[1], company: m[2], label: g.label}; }));
+const IMPACT = {
+  none_left: {c: "var(--critical)", ink: "var(--critical-ink)", rank: 0},
+  most:      {c: "var(--serious)",  ink: "var(--serious-ink)",  rank: 1},
+  some:      {c: "var(--good)",     ink: "var(--good-ink)",     rank: 2},
+  unknown:   {c: "var(--muted)",    ink: "var(--text-3)",       rank: 3},
+};
+function impactText(impact, n, s) {
+  if (impact === "unknown") return "Not matched";
+  if (impact === "none_left") return n === 1 ? "No other marketed product" : `All ${n} products short`;
+  return `${n - s} of ${n} not reported short`;
+}
+const impactBadge = (impact, n, s) => `<span class="badge" style="color:${IMPACT[impact].ink}" title="${impact === "unknown" ? "This DIN was not found in the marketed product list" : "Marketed products with the same ingredient, strength, form and route"}"><span class="dot" style="background:${IMPACT[impact].c}"></span>${impactText(impact, n, s)}</span>`;
+
+// Watchlist (saved in this browser only)
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+};
+let watch = new Set((store.get("cdsm.watch", []) || []).map(d8).filter(Boolean));
+let visit = store.get("cdsm.visit", null);
+if (!visit || !visit.cur) visit = {prev: null, cur: DATA.as_of};
+else if (visit.cur !== DATA.as_of) visit = {prev: visit.cur, cur: DATA.as_of};
+store.set("cdsm.visit", visit);
+const star = (din) => din ? `<button class="star" data-star="${esc(d8(din))}" aria-pressed="${watch.has(d8(din))}" title="${watch.has(d8(din)) ? "Remove from my watchlist" : "Add to my watchlist"}" aria-label="${watch.has(d8(din)) ? "Remove from" : "Add to"} my watchlist">${watch.has(d8(din)) ? "★" : "☆"}</button>` : "";
+function memberList(gid, selfDin) {
+  const g = GROUPS[gid];
+  if (!g) return "";
+  const li = g.m.map(m => {
+    const r = rowByDin[m[0]];
+    const state = r
+      ? `<span class="tag short">Open report: ${STATUS[r.status]}</span> ${badge(r.fresh)} <span class="num">Est. end ${fmtDate(r.est_end)}</span>`
+      : `<span class="tag ok">No open report</span>`;
+    return `<li>${star(m[0])}<span class="who"><b>${esc(m[1])}</b>${m[0] === selfDin ? " (this product)" : ""}<br><small>${esc(m[2])} · DIN ${esc(m[0])}</small></span>${state}</li>`;
+  }).join("");
+  return `<div class="grouphead">${esc(g.label)}: ${g.n - g.s} of ${g.n} marketed product${g.n === 1 ? "" : "s"} not reported short</div><ul class="members">${li}</ul>`;
+}
+
 // Header
 $("#asof").textContent = fmtDate(DATA.as_of);
 $("#gen").textContent = `built ${DATA.generated_at}`;
@@ -231,6 +351,7 @@ document.querySelectorAll('[role="tab"]').forEach(t => t.addEventListener("click
   document.querySelectorAll('[role="tab"]').forEach(x => x.setAttribute("aria-selected", x === t));
   document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = p.id !== t.getAttribute("aria-controls"));
   if (t.id === "t-rel") drawCharts();
+  if (t.id === "t-watch") renderWatch();
 }));
 
 // Tooltip
@@ -246,6 +367,7 @@ $("#kpis-now").innerHTML =
   kpi(fmt(k.actual), "actual shortage reports") +
   kpi(fmt(k.anticipated), "anticipated shortage reports") +
   kpi(fmt(k.tier3), "Tier 3 (highest impact)", true) +
+  (DATA.dpd ? kpi(fmt(k.none_left), "with no other same-ingredient product left") : "") +
   kpi(fmt(k.changed_7d), "new or updated in 7 days");
 const outPct = q.not_updated.over_365_days.pct;
 $("#kpis-rel").innerHTML =
@@ -277,11 +399,12 @@ const PAGE = 50;
 DATA.rows.forEach(r => { r.nrep = r.reports.length; r._s = `${r.brand} ${r.name} ${r.din} ${r.company} ${r.strength}`.toLowerCase(); });
 
 function filtered() {
-  const t = $("#q").value.trim().toLowerCase(), st = $("#f-status").value, cf = $("#f-conf").value, ag = $("#f-atc").value, t3 = $("#f-t3").checked;
-  let rows = DATA.rows.filter(r => (!t || r._s.includes(t)) && (!st || r.status === st) && (!cf || r.fresh === cf) && (!ag || r.atcg === ag) && (!t3 || r.tier3));
+  const t = $("#q").value.trim().toLowerCase(), st = $("#f-status").value, cf = $("#f-conf").value, ag = $("#f-atc").value, t3 = $("#f-t3").checked, im = $("#f-impact").value;
+  let rows = DATA.rows.filter(r => (!t || r._s.includes(t)) && (!st || r.status === st) && (!cf || r.fresh === cf) && (!ag || r.atcg === ag) && (!t3 || r.tier3) && (!im || r.impact === im));
   if (sortKey) rows = [...rows].sort((a, b) => {
     let x = a[sortKey], y = b[sortKey];
     if (sortKey === "fresh") { x = CONF_RANK[x]; y = CONF_RANK[y]; }
+    if (sortKey === "impact") { x = IMPACT[x].rank * 1000 + (a.gn - a.gs); y = IMPACT[y].rank * 1000 + (b.gn - b.gs); }
     if (x == null) return 1; if (y == null) return -1;
     return (x > y ? 1 : x < y ? -1 : 0) * sortDir;
   });
@@ -296,29 +419,106 @@ function render() {
   $("#tbody").innerHTML = rows.slice(page * PAGE, page * PAGE + PAGE).map((r, i) => {
     const key = r.din || r.reports[0];
     const row = `<tr class="row" data-key="${esc(key)}" tabindex="0">
-      <td class="drug"><b>${esc(r.brand)}</b>${r.tier3 ? '<span class="pill" title="Tier 3: highest potential impact">Tier 3</span>' : ""}<small>${esc(r.name)} · ${esc(r.strength)} · ${esc(r.form)}</small></td>
-      <td class="num">${esc(r.din)}</td><td>${esc(r.company)}</td>
+      <td>${star(r.din)}</td>
+      <td class="drug"><b>${esc(r.brand)}</b>${r.tier3 ? '<span class="pill" title="Tier 3: highest potential impact">Tier 3</span>' : ""}<small>${esc(r.name)} · ${esc(r.strength)} · ${esc(r.form)}</small><small class="num">DIN ${esc(r.din) || "—"}</small></td>
+      <td>${esc(r.company)}</td>
       <td class="${r.status === "anticipated_shortage" ? "status-anticipated" : ""}">${STATUS[r.status]}</td>
+      <td class="dpd-only">${impactBadge(r.impact, r.gn, r.gs)}</td>
       <td>${badge(r.fresh)}</td><td class="num">${fmtDate(r.est_end)}</td><td class="num">${fmtDate(r.updated)}</td>
       <td class="num">${r.nrep}${r.nrep > 1 ? " (merged)" : ""}</td></tr>`;
-    const det = open === key ? `<tr class="detail"><td colspan="8">
+    const det = open === key ? `<tr class="detail"><td colspan="10">
       <b>Reason:</b> ${esc(r.reason) || "—"} · <b>Started:</b> ${fmtDate(r.started)} · <b>Route:</b> ${esc(r.route) || "—"}
       ${r.supply ? ` · <b>Company note:</b> ${esc(r.supply)}` : ""}${r.late ? " · <b>Filed late</b>" : ""}
       ${r.days_upd != null ? ` · <b>Days since update:</b> ${fmt(r.days_upd)}` : ""}<br>
       Official report${r.nrep > 1 ? "s" : ""}: ${r.reports.map(id => `<a href="${reportUrl(id)}" target="_blank" rel="noopener">#${id}</a>`).join(", ")}
+      ${DATA.dpd ? `<div style="margin-top:10px">${r.g ? memberList(r.g, d8(r.din)) : "This DIN was not found in Health Canada's list of marketed products, so same-ingredient products can't be shown."}</div>` : ""}
     </td></tr>` : "";
     return row + det;
-  }).join("") || `<tr><td colspan="8">No products match these filters.</td></tr>`;
+  }).join("") || `<tr><td colspan="10">No products match these filters.</td></tr>`;
 }
-["q", "f-status", "f-conf", "f-atc", "f-t3"].forEach(id => $("#" + id).addEventListener("input", () => { page = 0; render(); }));
+["q", "f-status", "f-conf", "f-atc", "f-t3", "f-impact"].forEach(id => $("#" + id).addEventListener("input", () => { page = 0; render(); }));
 $("#prev").onclick = () => { page--; render(); };
 $("#next").onclick = () => { page++; render(); };
-$("#tbody").addEventListener("click", e => { const tr = e.target.closest("tr.row"); if (!tr || e.target.closest("a")) return; open = open === tr.dataset.key ? null : tr.dataset.key; render(); });
-$("#tbody").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
+$("#tbody").addEventListener("click", e => { const tr = e.target.closest("tr.row"); if (!tr || e.target.closest("a") || e.target.closest(".star")) return; open = open === tr.dataset.key ? null : tr.dataset.key; render(); });
+$("#tbody").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("tr.row")) e.target.click(); });
 document.querySelectorAll("#p-now th[data-k]").forEach(th => th.addEventListener("click", () => {
   const key = th.dataset.k; sortDir = sortKey === key ? -sortDir : (key === "updated" || key === "nrep" ? -1 : 1); sortKey = key; render();
 }));
 render();
+
+// Same-ingredient options: one line per drug + strength + form
+const GLIST = Object.entries(GROUPS).map(([id, g]) => ({id, ...g,
+  _s: (g.label + " " + g.m.map(m => m.join(" ")).join(" ")).toLowerCase()}))
+  .sort((a, b) => IMPACT[a.impact].rank - IMPACT[b.impact].rank || b.s - a.s || a.label.localeCompare(b.label));
+let gpage = 0, gopen = null;
+function renderGroups() {
+  const t = $("#gq").value.trim().toLowerCase(), im = $("#g-impact").value;
+  const rows = GLIST.filter(g => (!t || g._s.includes(t)) && (!im || g.impact === im));
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  gpage = Math.min(gpage, pages - 1);
+  $("#gcount").textContent = `${fmt(rows.length)} of ${fmt(GLIST.length)} drug groups with an open report`;
+  $("#gpage").textContent = `Page ${gpage + 1} of ${pages}`;
+  $("#gprev").disabled = gpage === 0; $("#gnext").disabled = gpage >= pages - 1;
+  $("#gbody").innerHTML = rows.slice(gpage * PAGE, gpage * PAGE + PAGE).map(g =>
+    `<tr class="row" data-g="${g.id}" tabindex="0"><td class="drug"><b>${esc(g.label)}</b></td><td class="num">${g.s}</td><td class="num">${g.n - g.s}</td><td>${impactBadge(g.impact, g.n, g.s)}</td></tr>` +
+    (gopen === g.id ? `<tr class="detail"><td colspan="4">${memberList(g.id, null)}</td></tr>` : "")
+  ).join("") || `<tr><td colspan="4">No open shortage report matches this search. Either nothing in that group is reported short, or it is spelled differently in the official data.</td></tr>`;
+}
+["gq", "g-impact"].forEach(id => $("#" + id).addEventListener("input", () => { gpage = 0; renderGroups(); }));
+$("#gprev").onclick = () => { gpage--; renderGroups(); };
+$("#gnext").onclick = () => { gpage++; renderGroups(); };
+$("#gbody").addEventListener("click", e => { const tr = e.target.closest("tr.row"); if (!tr || e.target.closest(".star")) return; gopen = gopen === tr.dataset.g ? null : tr.dataset.g; renderGroups(); });
+$("#gbody").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("tr.row")) e.target.click(); });
+renderGroups();
+
+// Watchlist
+let clearArmed = false;
+const saveWatch = () => store.set("cdsm.watch", [...watch]);
+function renderWatch() {
+  $("#t-watch").textContent = watch.size ? `My watchlist (${watch.size})` : "My watchlist";
+  const items = [...watch].map(din => ({din, r: rowByDin[din], n: nameByDin[din]}));
+  items.sort((a, b) => (!a.r - !b.r) || (a.r && b.r ? IMPACT[a.r.impact].rank - IMPACT[b.r.impact].rank : 0) || a.din.localeCompare(b.din));
+  const short = items.filter(i => i.r);
+  const fresh = visit.prev ? short.filter(i => (i.r.updated || "") > visit.prev) : [];
+  $("#w-kpis").innerHTML = watch.size ? kpi(fmt(watch.size), "products on my list") +
+    kpi(fmt(short.length), "have an open shortage report", short.length > 0) +
+    (DATA.dpd ? kpi(fmt(short.filter(i => i.r.impact === "none_left").length), "with no other same-ingredient product left") : "") +
+    (visit.prev ? kpi(fmt(fresh.length), `changed since my last visit (${fmtDate(visit.prev)})`) : "") : "";
+  $("#wbody").innerHTML = items.map(({din, r, n}) => {
+    const isNew = r && visit.prev && (r.updated || "") > visit.prev;
+    const name = r ? `<b>${esc(r.brand)}</b><small>${esc(r.name)} · ${esc(r.strength)} · ${esc(r.form)} · ${esc(r.company)}</small>`
+      : n ? `<b>${esc(n.brand)}</b><small>${esc(n.label)} · ${esc(n.company)}</small>` : `<small>Not in today's shortage data</small>`;
+    return `<tr><td>${star(din)}</td><td class="drug">${name}</td><td class="num">${esc(din)}</td>
+      <td>${r ? `<span class="tag short">${STATUS[r.status]}</span>` : `<span class="tag ok">No open report</span>`}${isNew ? ` <span class="tag new">Changed since last visit</span>` : ""}</td>
+      <td class="dpd-only">${r ? impactBadge(r.impact, r.gn, r.gs) : "—"}</td>
+      <td class="num">${r ? fmtDate(r.est_end) : "—"}</td><td class="num">${r ? fmtDate(r.updated) : "—"}</td></tr>`;
+  }).join("") || `<tr><td colspan="7">Your watchlist is empty. Paste your DINs above, or use the star beside any product.</td></tr>`;
+}
+function refreshStars() { render(); renderGroups(); renderWatch(); }
+document.addEventListener("click", e => {
+  const b = e.target.closest(".star"); if (!b) return;
+  const din = b.dataset.star; watch.has(din) ? watch.delete(din) : watch.add(din);
+  $("#w-msg").textContent = saveWatch() ? "" : "Could not save in this browser; the list will last until you close this page.";
+  refreshStars();
+});
+$("#w-add").onclick = () => {
+  const found = ($("#w-in").value.match(/\b\d{5,8}\b/g) || []).map(d8);
+  const before = watch.size; found.forEach(d => watch.add(d));
+  const ok = saveWatch();
+  $("#w-msg").textContent = found.length ? `Added ${watch.size - before} new DIN${watch.size - before === 1 ? "" : "s"} (${found.length} found in what you pasted).${ok ? "" : " Could not save in this browser."}` : "No DINs found in what you pasted.";
+  if (found.length) $("#w-in").value = "";
+  refreshStars();
+};
+$("#w-copy").onclick = async () => {
+  const text = [...watch].join("\n");
+  try { await navigator.clipboard.writeText(text); $("#w-msg").textContent = `Copied ${watch.size} DINs.`; }
+  catch (e) { $("#w-in").value = text; $("#w-msg").textContent = "Your DINs are in the box above; select and copy them."; }
+};
+$("#w-clear").onclick = () => {
+  if (!clearArmed) { clearArmed = true; $("#w-clear").textContent = "Click again to clear"; setTimeout(() => { clearArmed = false; $("#w-clear").textContent = "Clear list"; }, 4000); return; }
+  clearArmed = false; $("#w-clear").textContent = "Clear list"; watch.clear(); saveWatch(); $("#w-msg").textContent = "Watchlist cleared."; refreshStars();
+};
+renderWatch();
 
 // Company table
 let coKey = "no_update_pct", coDir = -1;
