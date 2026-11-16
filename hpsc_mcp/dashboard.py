@@ -266,7 +266,9 @@ def build_payload(open_reports: list[dict], resolved: list[dict], today: dt.date
             "none_left": sum(1 for r in rows if r["impact"] == "none_left"),
             "matched": sum(1 for r in rows if r["impact"] != "unknown"),
         },
-        "dpd": {"marketed_products": len({p["din"] for p in products})} if products else None,
+        # "dins": every marketed human DIN, 8 digits each, joined with no separator (for the watchlist check).
+        "dpd": {"marketed_products": len({p["din"] for p in products}),
+                "dins": "".join(sorted({p["din"] for p in products}))} if products else None,
         "groups": groups or {},
         "quality": {
             "labels": [{"label": c, "count": stats["freshness_labels"].get(c, 0)} for c in FRESH_ORDER],

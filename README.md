@@ -24,7 +24,8 @@ Two views plus a method page:
 
 | View | For | What it shows |
 | --- | --- | --- |
-| What's short now | Pharmacists, clinics, long-term care | Every product with an open report (merged by DIN), Tier 3 first, then the products with the fewest same-ingredient options left. Search and filters by status, same-ingredient supply, report freshness and therapeutic group, plus what changed in the last 7 days |
+| Today | Pharmacists | The 30-second read: only what is new or changed since your last visit, split into "needs a call" (no other same-ingredient product), "another maker has no open report" and "marked resolved", with your watchlist first |
+| All shortages | Pharmacists, clinics, long-term care | Every product with an open report (merged by DIN), Tier 3 first, then the products with the fewest same-ingredient options left. Search and filters by status, same-ingredient supply, report freshness and therapeutic group, plus what changed in the last 7 days |
 | Same-ingredient options | Pharmacists | One line per drug, strength and form: every marketed product in that group and whether it has an open shortage report |
 | My watchlist | Pharmacists | Paste the DINs you stock (or star any product) and see only those, with what changed since your last visit. Saved in your browser only |
 | Report freshness | Health Canada, provinces, associations, researchers | Time since each open report was last updated, by therapeutic group and by company, with a daily trend line |

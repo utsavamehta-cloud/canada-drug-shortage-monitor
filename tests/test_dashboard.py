@@ -159,7 +159,8 @@ def test_impact_label_and_sort():
     assert g["n"] == 4 and g["s"] == 1 and g["impact"] == "some"
     assert g["m"][-1][0] == "02000001"  # products with no open report are listed first
     assert payload["kpi"]["none_left"] == 2 and payload["kpi"]["matched"] == 3
-    assert payload["dpd"] == {"marketed_products": 6}
+    assert payload["dpd"]["marketed_products"] == 6 and len(payload["dpd"]["dins"]) == 6 * 8
+    assert payload["dpd"]["dins"].startswith("0200000102000002")
     assert g["check"] is False and rows["02000001"]["check"] is False  # oral capsule: no presentation caution
 
     # Three of four short -> "most"; all four -> "none_left".
