@@ -89,9 +89,9 @@
  },
  {
   "date": "2026-11-24",
-  "open": 1799,
-  "no_update_12m_pct": 50.0,
-  "no_end_pct": 58.8,
+  "open": 1809,
+  "no_update_12m_pct": 49.6,
+  "no_end_pct": 58.5,
   "dup_pct": 9.7,
   "tier3": 29
  }
